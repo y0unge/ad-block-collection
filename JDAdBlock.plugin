@@ -1,0 +1,38 @@
+#!name = 京东去广告
+#!desc = 移除京东 App 开屏广告(start 启动图)、首页/购物车/订单/个人页"为你推荐"等推荐楼层与弹窗，拦截 uniformRecommend 推荐流与 storage.jd.com 推荐资源。购物车推荐可能不走 uniformRecommend，脚本匹配全部 api.m.jd.com 响应。
+#!author = aoconch, y0unge
+#!homepage = https://github.com/aoconch/jd-loon-remove-recommend
+#!category = 去广告
+#!tag = 京东,去广告,去推荐
+#!date = 2026-10-28
+
+# ================================================================
+# 京东 (com.jingdong.app.mall) 去广告 Loon 插件
+# 整合自 aoconch/jd-loon-remove-recommend
+# 本仓库整合时的适配:
+#   1. 脚本内置为仓库远程地址，安装即用
+#   2. reject-200 (QuantumultX 语法) 改为 Loon 支持的 reject-dict
+#   3. 移除上游脚本中每个请求都弹出系统通知的调试代码
+# 使用说明:
+#   1. Loon 安装并信任 CA 证书，开启 MITM 总开关
+#   2. 安装本插件即可，脚本经远程地址自动加载
+# ================================================================
+
+[Rule]
+# 屏蔽京东 QUIC/UDP，强制走 TCP 以便 MITM 解密
+AND, ((DOMAIN, api.m.jd.com), (PROTOCOL, QUIC)), REJECT
+AND, ((DOMAIN-SUFFIX, jd.com), (PROTOCOL, QUIC)), REJECT
+AND, ((DOMAIN, api.m.jd.com), (PROTOCOL, UDP)), REJECT
+
+[Rewrite]
+# 推荐流接口直接返回空 JSON
+^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=uniformRecommend\d* url reject-dict
+# storage.jd.com 上的推荐资源返回空 JSON
+^https:\/\/storage\.jd\.com\/mpaas2-public\/product\/[^\/]+\/recommend_jdur url reject-dict
+
+[Script]
+# 全量清理 api.m.jd.com 响应中的广告/推荐楼层
+http-response ^https:\/\/api\.m\.jd\.com\/ requires-body=1, timeout=20, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JD_remove_ads.js, tag=京东去广告
+
+[MITM]
+hostname = api.m.jd.com, storage.jd.com, waapdg.jd.com, policy.jd.com, mars.jd.com, api.jd.com, routine.m.jd.com, color.jd.com

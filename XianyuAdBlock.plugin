@@ -1,0 +1,78 @@
+#!name = 闲鱼去广告
+#!desc = 去除闲鱼开屏广告、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗，并拦截广告曝光点击上报。基于闲鱼 7.28.80 (com.taobao.fleamarket) IPA 逆向分析。脚本已内置远程地址，安装即用。
+#!author = y0unge
+#!homepage = https://github.com/y0unge/ad-block-collection
+#!category = 去广告
+#!date = 2026-10-28
+
+# ================================================================
+# 闲鱼 (com.taobao.fleamarket) 去广告 Loon 插件
+# 适配版本: 7.28.80 (脱壳 IPA 逆向)
+#
+# 逆向依据:
+#   开屏广告   FishSplashAdManager 经 mtop.taobao.idlecommerce.splash.{ads,async.ads,config}
+#              拉取，请求失败(onAdGetFail)即不展示开屏
+#   信息流广告 DinamicXPreset_homepage 模板: fish_home_advertise_card_d3/d4、
+#              fish_local_advertise_card_d4、idlefish_local_feed2_marketing、
+#              fish_home_feeds_pager_banner
+#   详情页广告 DinamicXPreset_detail_recommend 模板: detail_recommend_ad_card
+#   直播广告   mtop.taobao.idle.live.home.ads.material.get
+#   小游戏广告 mtop.taobao.idlecommerce.game.iaa.ads / idle.mini.game.ad.url.query /
+#              idle.play.ad.{query,event.query,event.push}
+#   鱼塘弹窗   mtop.taobao.idle.fishpool.poplayerinfo
+#   广告上报   mtop.idle.ad.{click,expose,...}、mtop.ali.ad.settle.*、tanx.com
+#
+# 使用说明:
+#   1. Loon 安装并信任 CA 证书，开启 MITM 总开关
+#   2. 安装本插件即可，脚本经远程地址自动加载
+# ================================================================
+
+[Rewrite]
+# --- 开屏广告 (FishSplashAd) ---
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlecommerce\.splash\.(?:ads|async\.ads|config)\/ url reject
+
+# --- 直播首页广告 ---
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.live\.home\.ads\.material\.get\/ url reject
+
+# --- 小游戏/互动激励广告 (看广告得奖励类，不需要可删除对应行) ---
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlecommerce\.game\.iaa\.ads\/ url reject
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.mini\.game\.ad\.url\.query\/ url reject
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.play\.ad\.(?:query|event\.(?:query|push))\/ url reject
+
+# --- 鱼塘弹窗 ---
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.fishpool\.poplayerinfo\/ url reject
+
+# --- 广告曝光/点击/结算上报 ---
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.idle\.ad\.(?:click|expose|failed\.batch\.(?:click|expose))\/ url reject
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.ali\.ad\.settle\.(?:brand\.log|cpc\.click|cpm\.click|tanx\.click|tianhe\.click)\/ url reject
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.tmall\.jiuxi\.activity\.ad\.upstream\.report\.(?:click|impression)\/ url reject
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.(?:life\.ad\.click\.get|o2o\.ad\.(?:action|exposure|gateway)\.get)\/ url reject
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.idle\.idleadv\.(?:app\.launch\.report|xyflowin\.upload)\/ url reject
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home\.pop\.interest\.upload\/ url reject
+
+[Script]
+# 信息流/详情页广告卡片过滤
+http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home(?:\.nextfresh)?\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_首页信息流去广告
+http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.home\.nextnearby\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_同城信息流去广告
+http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.(?:item\.detail|detail\.preget|awesome\.detail(?:\.unit)?)\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_详情页去广告
+
+[Rule]
+# 阿里妈妈 Tanx 广告交易 (click.tanx.com / ifs.tanx.com / ef-dongfeng.tanx.com)
+DOMAIN-SUFFIX,tanx.com,REJECT
+# 腾讯广点通
+DOMAIN-SUFFIX,gdt.qq.com,REJECT
+# 穿山甲 (CSJ)
+DOMAIN-SUFFIX,ad.toutiao.com,REJECT
+DOMAIN-SUFFIX,ad.oceanengine.com,REJECT
+DOMAIN-SUFFIX,pangle.cn,REJECT
+DOMAIN-SUFFIX,csjplatform.com,REJECT
+DOMAIN-SUFFIX,pangolin-sdk-toutiao.com,REJECT
+DOMAIN-SUFFIX,lf-ad-ies.bytecdn.cn,REJECT
+DOMAIN,bridge.bytedance.com,REJECT
+# 快手/百度联盟广告
+DOMAIN,e.kuaishou.com,REJECT
+DOMAIN,mobads.baidu.com,REJECT
+DOMAIN,mobads-logs.baidu.com,REJECT
+
+[MITM]
+hostname = acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com

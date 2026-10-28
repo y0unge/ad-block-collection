@@ -1,0 +1,84 @@
+#!name = 去广告合集
+#!desc = 闲鱼 + 京东 去广告合一插件。闲鱼：开屏广告、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗、广告上报拦截（基于闲鱼 7.28.80 IPA 逆向）；京东：开屏广告、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流拦截（整合自 aoconch/jd-loon-remove-recommend）。脚本已内置远程地址，安装即用。
+#!author = y0unge, aoconch
+#!homepage = https://github.com/y0unge/ad-block-collection
+#!category = 去广告
+#!tag = 闲鱼,京东,去广告
+#!date = 2026-10-28
+
+# ================================================================
+# 去广告合集 (闲鱼 + 京东) Loon 插件
+#
+# 闲鱼部分: 基于 com.taobao.fleamarket 7.28.80 脱壳 IPA 逆向
+#   开屏广告   FishSplashAdManager 经 mtop.taobao.idlecommerce.splash.{ads,async.ads,config}
+#   信息流广告 fish_home_advertise_card_d3/d4、fish_local_advertise_card_d4、
+#              idlefish_local_feed2_marketing、fish_home_feeds_pager_banner
+#   详情页广告 detail_recommend_ad_card
+#
+# 京东部分: 整合自 aoconch/jd-loon-remove-recommend
+#   开屏广告   functionId=start 响应中的启动图
+#   推荐楼层   楼层 mId/标题匹配递归清理 (uniformRecommend 等接口)
+#
+# 使用说明:
+#   1. Loon 安装并信任 CA 证书，开启 MITM 总开关
+#   2. 安装本插件即可，脚本经远程地址自动加载
+#   3. 如只需单个 App 的去广告，可安装 XianyuAdBlock / JDAdBlock 单项插件
+# ================================================================
+
+[Rule]
+# --- 京东: 屏蔽 QUIC/UDP，强制走 TCP 以便 MITM 解密 ---
+AND, ((DOMAIN, api.m.jd.com), (PROTOCOL, QUIC)), REJECT
+AND, ((DOMAIN-SUFFIX, jd.com), (PROTOCOL, QUIC)), REJECT
+AND, ((DOMAIN, api.m.jd.com), (PROTOCOL, UDP)), REJECT
+# --- 闲鱼: 阿里妈妈 Tanx 广告交易 (click.tanx.com / ifs.tanx.com / ef-dongfeng.tanx.com) ---
+DOMAIN-SUFFIX,tanx.com,REJECT
+# --- 腾讯广点通 ---
+DOMAIN-SUFFIX,gdt.qq.com,REJECT
+# --- 穿山甲 (CSJ) ---
+DOMAIN-SUFFIX,ad.toutiao.com,REJECT
+DOMAIN-SUFFIX,ad.oceanengine.com,REJECT
+DOMAIN-SUFFIX,pangle.cn,REJECT
+DOMAIN-SUFFIX,csjplatform.com,REJECT
+DOMAIN-SUFFIX,pangolin-sdk-toutiao.com,REJECT
+DOMAIN-SUFFIX,lf-ad-ies.bytecdn.cn,REJECT
+DOMAIN,bridge.bytedance.com,REJECT
+# --- 快手/百度联盟广告 ---
+DOMAIN,e.kuaishou.com,REJECT
+DOMAIN,mobads.baidu.com,REJECT
+DOMAIN,mobads-logs.baidu.com,REJECT
+
+[Rewrite]
+# ==================== 闲鱼 ====================
+# --- 开屏广告 (FishSplashAd) ---
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlecommerce\.splash\.(?:ads|async\.ads|config)\/ url reject
+# --- 直播首页广告 ---
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.live\.home\.ads\.material\.get\/ url reject
+# --- 小游戏/互动激励广告 (看广告得奖励类，不需要可删除对应行) ---
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlecommerce\.game\.iaa\.ads\/ url reject
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.mini\.game\.ad\.url\.query\/ url reject
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.play\.ad\.(?:query|event\.(?:query|push))\/ url reject
+# --- 鱼塘弹窗 ---
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.fishpool\.poplayerinfo\/ url reject
+# --- 广告曝光/点击/结算上报 ---
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.idle\.ad\.(?:click|expose|failed\.batch\.(?:click|expose))\/ url reject
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.ali\.ad\.settle\.(?:brand\.log|cpc\.click|cpm\.click|tanx\.click|tianhe\.click)\/ url reject
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.tmall\.jiuxi\.activity\.ad\.upstream\.report\.(?:click|impression)\/ url reject
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.(?:life\.ad\.click\.get|o2o\.ad\.(?:action|exposure|gateway)\.get)\/ url reject
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.idle\.idleadv\.(?:app\.launch\.report|xyflowin\.upload)\/ url reject
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home\.pop\.interest\.upload\/ url reject
+# ==================== 京东 ====================
+# --- 推荐流接口直接返回空 JSON ---
+^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=uniformRecommend\d* url reject-dict
+# --- storage.jd.com 上的推荐资源返回空 JSON ---
+^https:\/\/storage\.jd\.com\/mpaas2-public\/product\/[^\/]+\/recommend_jdur url reject-dict
+
+[Script]
+# ==================== 闲鱼: 信息流/详情页广告卡片过滤 ====================
+http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home(?:\.nextfresh)?\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_首页信息流去广告
+http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.home\.nextnearby\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_同城信息流去广告
+http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.(?:item\.detail|detail\.preget|awesome\.detail(?:\.unit)?)\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_详情页去广告
+# ==================== 京东: 全量清理 api.m.jd.com 响应中的广告/推荐楼层 ====================
+http-response ^https:\/\/api\.m\.jd\.com\/ requires-body=1, timeout=20, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JD_remove_ads.js, tag=京东去广告
+
+[MITM]
+hostname = acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com, api.m.jd.com, storage.jd.com, waapdg.jd.com, policy.jd.com, mars.jd.com, api.jd.com, routine.m.jd.com, color.jd.com
