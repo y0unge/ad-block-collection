@@ -34,18 +34,24 @@ Loon 去广告插件合集，包含**闲鱼**与**京东**的去广告插件。
 
 ## 京东去广告
 
-整合自 [aoconch/jd-loon-remove-recommend](https://github.com/aoconch/jd-loon-remove-recommend)，覆盖：
+整合自 [aoconch/jd-loon-remove-recommend](https://github.com/aoconch/jd-loon-remove-recommend)，并基于京东 **16.1.80 脱壳 IPA 逆向**与抓包分析大幅增强，覆盖：
 
-- **开屏广告**：`functionId=start` 响应中的启动图列表
+- **开屏广告**：`functionId=start` 响应清理（`images`/`showTimesDaily`/`startADImage`，含 POST body 传参通道）
+- **QUIC 旁路拦截**：京东 Cronet 网络栈可走 QUIC（`quic-api.m.jd.com`，UDP443）完全绕过 MITM，导致开屏偶发漏网；拦截后强制回退 TCP
+- **POST body 通道拦截**：京东新网络栈（JDNetworkBaseAF）将 functionId 序列化进 POST body（URL 为光秃的 `/client.action?`），URL 匹配对其无效；请求侧脚本读取 body 拦截纯广告接口（`queryPagePopWindow`/`babelGetGuideTips`/`secondFloor`/`searchBoxWord`/`uniformRecommend` 等）
+- **API 网关域名全覆盖**（UnitRouter 机制）：`api`/`api-q`/`squnit-api`/`quic-api.m.jd.com`、`api-ai`/`squnit-api-ai.jd.com`
 - **推荐流**：`uniformRecommend` 直接返回空包
-- **推荐楼层**：首页 `welcomeHome`、购物车、订单 `myOrderInfo`、个人页 `personinfoBusiness`、物流 `deliverLayer` 等楼层按 mId/标题递归清理
+- **推荐楼层**：首页 `welcomeHome`、购物车、订单 `myOrderInfo`、个人页 `personinfoBusiness`、物流 `deliverLayer` 等楼层按 mId/标题递归清理（`deepScrub`）
 - **弹窗**：`commonPopup` / `floatLayer` 等
+- **埋点上报**：`mars.jd.com` 等 18 个埋点/统计/监控域名 REJECT（抓包 717 条请求中约 340 条）
+- **观测日志**：Loon 日志搜索 `[JD-FID]` 可见全部 functionId 流水（Warning 级），便于排查漏网接口
 
-整合时的适配（其余逻辑保持原样）：
+整合增强（基于 IPA 逆向）：
 
-1. 脚本内置为仓库远程地址，安装即用
-2. `reject-200`（QuantumultX 语法）改为 Loon 支持的 `reject-dict`
-3. 移除上游脚本中每个请求都弹出系统通知的调试代码
+1. `startADImage` 开屏广告单图字段清理（16.1.80 IPA 发现）
+2. Script 使用 Loon 3.5.1(983)+ 新语法（实测旧语法 `http-request` 在部分环境不触发）
+3. 修复原脚本空响应时的双 `$done` 问题
+4. QUIC/UDP 拦截规则与埋点域名屏蔽
 
 ## 致谢
 

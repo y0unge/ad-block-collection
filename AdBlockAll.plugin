@@ -1,10 +1,10 @@
 #!name = 去广告合集
-#!desc = 闲鱼 + 京东 去广告合一插件。闲鱼：开屏广告、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗、广告上报拦截（基于闲鱼 7.28.80 IPA 逆向）；京东：开屏广告、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流拦截（整合自 aoconch/jd-loon-remove-recommend）。脚本已内置远程地址，安装即用。
+#!desc = 闲鱼 + 京东 去广告合一插件。闲鱼：开屏广告、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗、广告上报拦截（基于闲鱼 7.28.80 IPA 逆向）；京东：开屏广告(URL+POST body 双通道)、QUIC 旁路拦截、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、埋点上报域名屏蔽（基于京东 16.1.80 IPA 逆向+抓包）。脚本已内置远程地址，安装即用。日志搜 [JD-FID] 可观测京东接口流水。
 #!author = y0unge, aoconch
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
 #!tag = 闲鱼,京东,去广告
-#!date = 2026-10-28
+#!date = 2026-10-29
 
 # ================================================================
 # 去广告合集 (闲鱼 + 京东) Loon 插件
@@ -15,9 +15,12 @@
 #              idlefish_local_feed2_marketing、fish_home_feeds_pager_banner
 #   详情页广告 detail_recommend_ad_card
 #
-# 京东部分: 整合自 aoconch/jd-loon-remove-recommend
-#   开屏广告   functionId=start 响应中的启动图
+# 京东部分: aoconch/jd-loon-remove-recommend + 本仓库增强(16.1.80 IPA 逆向)
+#   开屏广告   start 响应清理(images/showTimesDaily/startADImage)，
+#              覆盖 POST body 传参通道(请求侧脚本读取 body 拦截)
+#   QUIC旁路   京东 Cronet 可走 QUIC 绕过 MITM，已拦截强制回退 TCP
 #   推荐楼层   楼层 mId/标题匹配递归清理 (uniformRecommend 等接口)
+#   埋点上报   mars.jd.com 等 18 个上报域名 REJECT
 #
 # 使用说明:
 #   1. Loon 安装并信任 CA 证书，开启 MITM 总开关
@@ -30,6 +33,26 @@
 AND, ((DOMAIN, api.m.jd.com), (PROTOCOL, QUIC)), REJECT
 AND, ((DOMAIN-SUFFIX, jd.com), (PROTOCOL, QUIC)), REJECT
 AND, ((DOMAIN, api.m.jd.com), (PROTOCOL, UDP)), REJECT
+# --- 京东: 埋点/统计/监控上报域名 (基于抓包+IPA逆向) ---
+DOMAIN,mars.jd.com,REJECT
+DOMAIN,perf.m.jd.com,REJECT
+DOMAIN,h5speed.m.jd.com,REJECT
+DOMAIN,sh.jd.com,REJECT
+DOMAIN,anti-sdk-report.m.jd.com,REJECT
+DOMAIN,uranus.jd.com,REJECT
+DOMAIN,mllog.jd.com,REJECT
+DOMAIN,ex.m.jd.com,REJECT
+DOMAIN,cltm.jd.com,REJECT
+DOMAIN,ccflbs.m.jd.com,REJECT
+DOMAIN,dsap.jd.com,REJECT
+DOMAIN,jra.jd.com,REJECT
+DOMAIN,sdkfp.jd.com,REJECT
+DOMAIN,device-security-url.jd.com,REJECT
+DOMAIN,policy.jd.com,REJECT
+DOMAIN,jddebug.com,REJECT
+# --- 京东: 广告 ---
+DOMAIN,im-x.jd.com,REJECT
+DOMAIN,imgcps.jd.com,REJECT
 # --- 闲鱼: 阿里妈妈 Tanx 广告交易 (click.tanx.com / ifs.tanx.com / ef-dongfeng.tanx.com) ---
 DOMAIN-SUFFIX,tanx.com,REJECT
 # --- 腾讯广点通 ---
@@ -48,8 +71,7 @@ DOMAIN,mobads.baidu.com,REJECT
 DOMAIN,mobads-logs.baidu.com,REJECT
 
 [Rewrite]
-# ==================== 闲鱼 ====================
-# --- 开屏广告 (FishSplashAd) ---
+# ==================== 闲鱼 ====================# --- 开屏广告 (FishSplashAd) ---
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlecommerce\.splash\.(?:ads|async\.ads|config)\/ url reject
 # --- 直播首页广告 ---
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.live\.home\.ads\.material\.get\/ url reject
@@ -71,14 +93,25 @@ DOMAIN,mobads-logs.baidu.com,REJECT
 ^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=uniformRecommend\d* url reject-dict
 # --- storage.jd.com 上的推荐资源返回空 JSON ---
 ^https:\/\/storage\.jd\.com\/mpaas2-public\/product\/[^\/]+\/recommend_jdur url reject-dict
+# --- 纯广告接口 (GET/OPTIONS 场景，URL 带 functionId) ---
+^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=queryPagePopWindow - reject
+^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=babelGetGuideTips - reject
+^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=secondFloor - reject
 
 [Script]
 # ==================== 闲鱼: 信息流/详情页广告卡片过滤 ====================
 http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home(?:\.nextfresh)?\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_首页信息流去广告
 http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.home\.nextnearby\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_同城信息流去广告
 http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.(?:item\.detail|detail\.preget|awesome\.detail(?:\.unit)?)\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_详情页去广告
-# ==================== 京东: 全量清理 api.m.jd.com 响应中的广告/推荐楼层 ====================
-http-response ^https:\/\/api\.m\.jd\.com\/ requires-body=1, timeout=20, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JD_remove_ads.js, tag=京东去广告
+# ==================== 京东 ====================
+# 请求侧: 读取 POST body 中的 functionId(京东新网络栈将 fid 序列化进 body，URL 匹配对其无效)，
+# 纯广告接口本地返回空 JSON，并记录全部 functionId 到脚本日志([JD-FID]，Warning 级)
+# 覆盖全部 API 网关域名变体(UnitRouter 机制): api/api-q/squnit-api/quic-api.m.jd.com, api-ai/squnit-api-ai.jd.com
+# 注: 使用 Loon 3.5.1(983)+ 新语法(实测旧语法 http-request 在部分环境不触发)
+request if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(client\.action|api)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/jd_ad_request.js") with tag="京东_广告请求拦截", timeout=20, requires_body=true
+# 响应侧: aoconch 原版逻辑(fid 从 URL/body/嵌套 JSON 提取 + 楼层 mId/标题递归清理 + uniformRecommend 空包)
+# + 本仓库增强: startADImage 清理(16.1.80 IPA)、双 $done 修复、[JD-FID] 观测日志
+response if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(client\.action|api)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JD_remove_ads.js") with tag="京东_广告响应清理", timeout=20, requires_body=true
 
 [MITM]
-hostname = acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com, api.m.jd.com, storage.jd.com, waapdg.jd.com, policy.jd.com, mars.jd.com, api.jd.com, routine.m.jd.com, color.jd.com
+hostname = acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com, api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, waapdg.jd.com, policy.jd.com, mars.jd.com, api.jd.com, routine.m.jd.com, color.jd.com

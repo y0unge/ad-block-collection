@@ -5,7 +5,10 @@
 
 const url = $request.url || "";
 const reqBody = typeof $request.body === "string" ? $request.body : "";
-if (!$response || !$response.body) $done({});
+if (!$response || !$response.body) {
+  $done({});
+  return;
+}
 
 const raw = $response.body;
 const rawStr = typeof raw === "string" ? raw : "";
@@ -26,6 +29,9 @@ function pickFunctionId() {
 }
 
 const fid = pickFunctionId();
+
+// 拦截/清理观测日志（Warning 级，Loon 日志搜 [JD-FID]）
+console.warn("[JD-FID] " + ($request.method || "GET") + " fid=" + (fid || "(none)") + " url=" + url.slice(0, 100));
 
 const TITLE_RE =
   /为你推荐|潮流好货|推荐榜单|快点来看看|你可能还喜欢|猜你喜欢|AI推荐|好物推荐|热门推荐|精选推荐|看了又看|相似好物/;
@@ -202,6 +208,8 @@ if (fid === "deliverLayer" || fid === "orderTrackBusiness") {
 } else if (fid === "start") {
   if (obj?.images?.length) obj.images = [];
   if (obj?.showTimesDaily) obj.showTimesDaily = 0;
+  // IPA(16.1.80)逆向补充：开屏广告单图字段
+  if ("startADImage" in obj) delete obj.startADImage;
 } else if (fid === "welcomeHome") {
   if (obj?.floorList?.length) {
     const delItems = ["bottomXview", "float", "photoCeiling", "recommend", "ruleFloat", "searchIcon", "topRotate", "tabBarAtmosphere"];
