@@ -79,15 +79,18 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的
 
 ## 网易云音乐 VIP 解锁
 
-基于网易云音乐 **9.6.15 (com.netease.cloudmusic)** 脱壳 IPA 逆向分析（eapi 协议级），合集与独立插件中**均默认开启**，均可在插件「参数」中切换（`netease_vip` 布尔开关；关闭时脚本直接放行，不解密、零开销）：
+基于网易云音乐 **9.6.15 (com.netease.cloudmusic)** 脱壳 IPA 逆向分析（eapi 协议级）+ 真机抓包重放实验，合集与独立插件中均**默认开启**，可在插件「参数」中切换（`netease_vip` 布尔开关；关闭时脚本直接放行，不解密、零开销）：
 
-- **eapi 协议**（`NEExtensionEncryptor` / `CloudMusicCoSDK`）：API 路径 `/api/...` → `/eapi/...`；请求体为 `AES-128-ECB` 加密后的大写 hex（`params=<HEX>`）；**响应体为原始 AES-128-ECB 密文**（非 hex），密钥 `e82ckenh8dichen8`——参数经「UTF-16 交错 base64 + 主密钥 `5f5f666f7e77420f1e2f42576e07223f` AES 二级封装」隐藏于 `__TEXT.__const`，需两级解包才得到 `-36cd479b6b5-` / `nobody` / `use` / `md5forencrypt` 与密钥本体
-- **VIP 限制的本质是客户端裁剪**：`/eapi/song/enhance/player/url(/v1)` 响应中 `freeTrialInfo{start,end}` 标记 30 秒试听窗口（`NMSongUrlInfo fillWithDictionary:` 解析），**URL 本身就是完整音频文件**——脚本解密后将 `freeTrialInfo/freeTrialPrivilege/freeTimeTrialPrivilege` 置空即整曲播放；同时递归 patch `privilege`（`payed/pl/dl/st`，灰色歌曲一并放开），使 VIP 歌曲点击直接进入播放流程
-- **免重加密的返回技巧**：客户端 `decrypt:type:` 对 `len%16!=0` 的响应体解密直接失败并原样放行（`0x10175cb38` 处 `tst x2,#0xf`），上层照常走 JSON 解析——脚本把改写后的 JSON 以纯文本返回、尾部补空格避开 16 字节对齐即可，无需重新 AES 加密，也绕开代理脚本二进制回写的兼容性问题
+- **eapi 协议**（`NEExtensionEncryptor` / `CloudMusicCoSDK`）：API 路径 `/api/...` → `/eapi/...`；请求体为 `AES-128-ECB`（PKCS7）加密后的大写 hex（`params=<HEX>`），明文为 `path + "-36cd479b6b5-" + json + "-36cd479b6b5-" + hex(md5("nobody"+path+"use"+json+"md5forencrypt"))`；**响应体为 `AES-128-ECB(gzip(JSON))` 双层**（HTTP 层 `Content-Encoding: gzip`）。密钥 `e82ckenh8dichen8` 藏了两层：`__TEXT.__const` 里 UTF-16 交错的 base64 串 → 主密钥 `5f5f666f7e77420f1e2f42576e07223f` AES 解密 → 才得到分隔符与密钥本体
+- **链路修复（本插件请求侧脚本）**：网关带 `vary: Accept-Encoding`，把 eapi 请求头改为 `Accept-Encoding: identity` 后服务器返回**未压缩的纯 AES(JSON)**（实测确认），响应侧因此无需 gzip 依赖；改写后的 JSON 以纯文本返回即可——客户端 `decrypt:type:` 对 `len%16!=0` 的体解密失败会**原样放行**（`0x10175cb38` 处 `tst x2,#0xf`），上层照常 JSON 解析，无需重新加密
+- **2026 服务器现状（真机重放实验证实）**：非 VIP 账号请求付费歌（fee=1），`player/url` 一律返回**服务端切片的 30 秒试听文件**（`jd-musicrep-ts` 路径、size≈30s、time≈30000），`trialMode`/`level`/`extPlay`/`verifyId` 无论怎么改都一样；咪咕替换通道（`NMSongNoCopyrightThirdPartyInfo`）仅用于无版权歌曲跳 H5，与 VIP 无关。**因此纯客户端改写无法变出完整音频**
+- **两级解锁策略**：
+  - **换源模式（推荐，参数 `unm_url` 配置后启用）**：脚本从 detail/歌单响应缓存歌曲名/歌手/时长，遇试听/付费歌曲时调用 UnblockNeteaseMusic/getunm 兼容音源 API（`GET /search?source=&key=`、`GET /song?source=&id=`）在 kugou/kuwo/migu/qq 逐源搜索，**时长差≤5s 且关键词命中**才采用，命中即把试听 url 替换为完整音频直链（同步修正 md5/size/type/time/fee）
+  - **降级模式（默认，未配置 `unm_url` 时）**：置空 `freeTrialInfo/freeTrialPrivilege/freeTimeTrialPrivilege` 并修补 privilege（`payed/pl/dl/st`），去掉 VIP 弹窗与试听限制交互（实际音频仍为官方 30s 切片）
 - **覆盖接口**：播放/下载 URL（核心）、`song/enhance/privilege`、`v3/song/detail`、`v3|v6/playlist/detail`、`cloudsearch/search`、每日推荐、`batch` 聚合、心动模式；MITM 仅 API 域（`music.163.com, *.music.163.com`，音频文件走 `music.126.net` CDN 不解密）
-- **安全性**：任何环节失败（参数关闭 / 非 eapi 密文 / 解密乱码 / JSON 解析失败 / 无改动）一律 `$done({})` 原样放行，绝不破坏正常响应；命中时 Loon 日志输出 `[NM-VIP] patched <接口>`
+- **安全性**：任何环节失败（参数关闭 / 非 eapi 密文 / 解密乱码 / JSON 解析失败 / 无改动）一律 `$done({})` 原样放行，绝不破坏正常响应；命中时 Loon 日志输出 `[NM-VIP] unlocked ...`（换源成功）或 `[NM-VIP] trial-cleared ...`（降级）
 
-> 本功能仅用于逆向学习与协议研究演示，请支持正版，付费收听你喜欢的音乐。
+> 换源模式需要自建或使用公共 UnblockNeteaseMusic/getunm 音源服务（如 `docker` 自建后填 `http://<ip>:<port>` 到插件参数 `unm_url`）。仅供逆向学习与协议研究演示，请支持正版，付费收听你喜欢的音乐。
 
 ## 低耗电优化
 

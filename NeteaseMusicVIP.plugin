@@ -1,5 +1,5 @@
 #!name = 网易云音乐 VIP 解锁
-#!desc = 网易云音乐 VIP 歌曲试听限制解锁（eapi 协议级，可选开关）。基于 9.6.15 脱壳 IPA 逆向：eapi 响应为 AES-128-ECB 原始密文（密钥 e82ckenh8dichen8，CloudMusicCoSDK，参数经「UTF-16 交错 base64 + 主密钥 AES 二级封装」隐藏于 __TEXT.__const）；客户端对 /eapi/song/enhance/player/url 响应中的 freeTrialInfo 字段做 30 秒试听裁剪，而 URL 本身是完整音频文件 —— MITM 解密后将 freeTrialInfo/freeTrialPrivilege/freeTimeTrialPrivilege 置空即可整曲播放；同时 patch privilege(payed/pl/dl/st) 使 VIP 歌曲点击直接进入播放流程。响应以纯 JSON 返回（字节长度补空格避开 16 对齐，客户端解密失败时回退原文，已在二进制 0x10175cb38/0x101753678 处验证安全）。安装后可在插件参数中关闭。
+#!desc = 网易云音乐 VIP 歌曲解锁（eapi 协议级，可选开关 + 音源配置）。基于 9.6.15 脱壳 IPA 逆向：eapi 响应为 AES-128-ECB 密文（密钥 e82ckenh8dichen8，参数经「UTF-16 交错 base64 + 主密钥 AES 二级封装」隐藏于 __TEXT.__const），外面通常再包 gzip；请求侧改 Accept-Encoding=identity 使响应不压缩（实测有效），响应侧解密后处理。2026 年服务器对非 VIP 付费歌只下发 30 秒服务端切片（jd-musicrep-ts），因此提供两级解锁：①配置了 unm_url（UnblockNeteaseMusic 兼容音源 API）时按歌名/歌手/时长换源替换为完整音频直链；②未配置或未命中时降级置空 freeTrialInfo/freeTrialPrivilege/freeTimeTrialPrivilege 并修补 privilege(payed/pl/dl/st)，去掉 VIP 弹窗与试听限制。客户端对 len%16!=0 的响应体解密失败会原样放行（二进制 0x10175cb38 验证），故改写后以纯 JSON 返回。默认开启，插件参数中可关闭。
 #!author = y0unge
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 解锁
@@ -18,10 +18,10 @@
 #       body += {header: ..., e_r: @YES} → [CloudMusicCoSDK generateSerial:path jsonString:type:0]
 #       明文 = path + "-36cd479b6b5-" + json + "-36cd479b6b5-"
 #              + hex(md5("nobody" + path + "use" + json + "md5forencrypt"))   ← 32 字符小写 hex
-#       AES-128-ECB 加密 → 大写 hex → POST body "params=<HEX>"
+#       AES-128-ECB 加密(PKCS7 填充) → 大写 hex → POST body "params=<HEX>"
 #     · 响应解密: responseDataFormat:url:withRequest: (0x101cfb7c8)
 #       → [CloudMusicCoSDK decrypt:data type:0] → deSerialDataInternalWithData: (0x101753944)
-#       响应体 = 原始 AES-128-ECB 密文（非 hex），去填充规则 = 末字节即填充长度(1..16)
+#       响应体 = AES-128-ECB 密文, 通常内层还有 gzip(Content-Encoding: gzip)
 #
 #  2) 密钥隐藏链（全部位于 __TEXT.__const, 0x10925cd00 起）
 #     "qGWDhNWDRGvh421GZVutvg=="  ──┐
@@ -33,37 +33,47 @@
 #     eapi(type 0) AES 密钥 = "e82ckenh8dichen8"
 #     type 1 密钥          = "x33sxtzc0jlftqi4"（备用通道）
 #
-#  3) VIP 限制本质 = 客户端裁剪
-#     /eapi/song/enhance/player/url(/v1) 响应 data[] 由 NMSongUrlInfo
-#     fillWithDictionary: 解析（NMCoreModel/Classes/Model/Song/NMSongUrlInfo.m），
-#     其中 freeTrialInfo{start,end} 标记 30s 试听窗口 —— 服务端下发的 url 指向
-#     完整音频文件，裁剪完全在客户端执行。置空即可整曲播放。
-#     相关字段: freeTrialInfo / freeTrialPrivilege / freeTimeTrialPrivilege
-#     歌单/详情侧 privilege(payed/pl/dl/st) 决定点击时是否弹 VIP 购买页。
+#  3) 2026 服务器现状(真机抓包 + 重放实验证实)
+#     · 非 VIP 账号请求付费歌(fee=1), player/url 一律返回服务端切片的
+#       30 秒试听文件(jd-musicrep-ts 路径, size≈30s, time≈30000),
+#       trialMode/level/extPlay/verifyId 等参数无论怎么改都一样
+#     · freeTrialInfo{start,end} 只是客户端试听交互标记, 置空无法变出完整音频
+#     · 咪咕替换通道(NMSongNoCopyrightThirdPartyInfo)仅用于无版权歌曲跳 H5, 与 VIP 无关
+#     · 网关带 vary: Accept-Encoding, 请求头改 identity 后响应为纯 AES(JSON) 不压缩
 #
-#  4) 本插件的返回策略（关键，免重加密）
-#     decrypt:type: 对 len%16!=0 的响应体解密直接失败并原样返回原文
-#     （0x10175cb38 tst x2,#0xf; b.ne fail → 0x101753678 返回 retain 后的原 data），
-#     上层照常走 JSON 解析。因此脚本把改写后的 JSON 以纯文本返回，
-#     并在尾部补空格保证 UTF-8 字节长度非 16 对齐即可，无需重新 AES 加密，
-#     也绕开了代理脚本二进制响应回写的兼容性问题。
+#  4) 解锁策略
+#     · 换源模式(推荐): 参数 unm_url 填 UnblockNeteaseMusic 兼容音源 API
+#       (需支持 GET /search?source=&key= 与 GET /song?source=&id=, 返回 JSON,
+#        getunm/OpenAPI 均可)。脚本用 detail 响应缓存的歌曲名/歌手/时长
+#       在 kugou/kuwo/migu/qq 逐源搜索, 时长差≤5s 且关键词命中才采用,
+#       命中即把试听 url 替换为完整直链(同步修正 md5/size/type/time)
+#     · 降级模式(默认, 无 unm_url 时): 置空试听三字段 + privilege 修补,
+#       去 VIP 弹窗与试听限制(实际音频仍为 30s 切片)
+#     · 客户端 decrypt:type: 对 len%16!=0 的体解密失败原样放行
+#       (0x10175cb38 tst x2,#0xf; b.ne fail → 0x101753678 返回原 data),
+#       改写后 JSON 以纯文本返回, 尾部补空格避开 16 对齐即可, 无需重加密
 #
 # 使用说明:
 #   1. Loon 安装并信任 CA 证书，开启 MITM 总开关
-#   2. 安装本插件即生效；在插件「参数」里可关闭 VIP 解锁
-#   3. 播放任意 VIP 歌曲验证；日志搜 [NM-VIP] 可观测命中
-#   4. 与其他网易云音乐插件（如 iKeLee NeteaseMusic.lpx）功能重叠时
-#      建议只保留其一，避免同 URL 双脚本处理
+#   2. 安装本插件即生效(默认降级模式)；在插件「参数」中:
+#        netease_vip  关闭/开启整个功能
+#        unm_url      填音源 API 地址(如自建 getunm/UNM 服务)开启换源模式
+#   3. 日志搜 [NM-VIP] 可观测: unlocked=换源成功, trial-cleared=降级处理
+#   4. 与其他网易云音乐插件功能重叠时建议只保留其一
 # ================================================================
 
 [Argument]
-netease_vip = boolean,true,解锁 VIP 歌曲（试听 30 秒 → 整曲播放；关闭则完全放行不做任何解密）
+netease_vip = boolean,true,启用 VIP 歌曲解锁（关闭则不解密不拦截，完全放行零开销）
+unm_url = string,,音源 API 地址（可选，UnblockNeteaseMusic/getunm 兼容服务，如 http://192.168.1.2:8080 ；填写后对试听/付费歌曲按歌名+时长换源替换为完整音频；留空则仅解除试听限制交互）
 
 [Script]
-# eapi 相关: 播放/下载 URL(核心解锁)、批量 privilege、歌曲详情、歌单详情、
-# 搜索、每日推荐、batch(多接口聚合)、心动模式
+# 请求侧: eapi 请求改 Accept-Encoding=identity, 让服务器返回不压缩的 AES(JSON)
+# (网关带 vary: Accept-Encoding, 实测 identity 返回无 content-encoding 头的密文;
+#  否则响应内层还有 gzip, 响应侧需 pako 才能处理)
+http-request ^https?:\/\/(?:[^\/]+\.)?music\.163\.com\/eapi\/(?:song\/enhance\/(?:player|download)\/url(?:\/v1)?|song\/enhance\/privilege|v3\/song\/detail|v[36]\/playlist\/detail|playlist\/detail|(?:cloud)?search|v1\/discovery|v3\/discovery|batch|playmode\/intelligence) requires-body=0, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/netease_music_vip_req.js, tag=网易云_VIP请求头修正
+# 响应侧: 解密 eapi 响应 → 歌名缓存 + privilege/试听修补 → (配置 unm_url 时)换源替换 → 纯 JSON 返回
 # binary-body-mode: eapi 响应为原始二进制密文, 需按字节处理
-http-response ^https?:\/\/(?:[^\/]+\.)?music\.163\.com\/eapi\/(?:song\/enhance\/(?:player|download)\/url(?:\/v1)?|song\/enhance\/privilege|v3\/song\/detail|v[36]\/playlist\/detail|playlist\/detail|(?:cloud)?search|v1\/discovery|v3\/discovery|batch|playmode\/intelligence) requires-body=1, binary-body-mode=true, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/netease_music_vip.js, tag=网易云_VIP解锁
+http-response ^https?:\/\/(?:[^\/]+\.)?music\.163\.com\/eapi\/(?:song\/enhance\/(?:player|download)\/url(?:\/v1)?|song\/enhance\/privilege|v3\/song\/detail|v[36]\/playlist\/detail|playlist\/detail|(?:cloud)?search|v1\/discovery|v3\/discovery|batch|playmode\/intelligence) requires-body=1, binary-body-mode=true, timeout=30, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/netease_music_vip.js, tag=网易云_VIP解锁
 
 [MITM]
 hostname = music.163.com, *.music.163.com
