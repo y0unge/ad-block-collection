@@ -49,7 +49,7 @@ DOMAIN,jra.jd.com,REJECT
 DOMAIN,sdkfp.jd.com,REJECT
 DOMAIN,device-security-url.jd.com,REJECT
 DOMAIN,policy.jd.com,REJECT
-DOMAIN,jddebug.com,REJECT
+DOMAIN-SUFFIX,jddebug.com,REJECT
 # --- 京东: 广告 ---
 DOMAIN,im-x.jd.com,REJECT
 DOMAIN,imgcps.jd.com,REJECT
