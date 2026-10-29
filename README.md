@@ -1,16 +1,16 @@
 ﻿# 去广告合集
 
-Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的去广告插件与**网易云音乐** VIP 解锁插件。
+Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的去广告插件；网易云音乐 VIP 解锁为独立插件。
 
 ## 插件一览
 
 | 插件 | 覆盖范围 | 安装链接（Loon → 插件 → 从链接安装） |
 | --- | --- | --- |
-| **去广告合集** (AdBlockAll) | 闲鱼 + 京东 + 传祺 + 网易云（VIP 解锁默认开启，参数中可关闭） | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/AdBlockAll.plugin` |
+| **去广告合集** (AdBlockAll) | 闲鱼 + 京东 + 传祺，一键全装 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/AdBlockAll.plugin` |
 | **闲鱼去广告** (XianyuAdBlock) | 仅闲鱼 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.plugin` |
 | **京东去广告** (JDAdBlock) | 仅京东 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JDAdBlock.plugin` |
 | **传祺去广告** (TrumpchiAdBlock) | 仅广汽传祺 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/TrumpchiAdBlock.plugin` |
-| **网易云音乐 VIP 解锁** (NeteaseMusicVIP) | 仅网易云（默认开启，参数中可关闭） | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/NeteaseMusicVIP.plugin` |
+| **网易云音乐 VIP 解锁** (NeteaseMusicVIP) | 仅网易云（独立安装，默认开启，参数中可关闭） | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/NeteaseMusicVIP.plugin` |
 
 脚本（`XianyuAdBlock.js` / `JD_remove_ads.js` / `netease_music_vip.js` 等）已通过插件内远程地址引用，无需手动安装。
 
@@ -79,7 +79,7 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的
 
 ## 网易云音乐 VIP 解锁
 
-基于网易云音乐 **9.6.15 (com.netease.cloudmusic)** 脱壳 IPA 逆向分析（eapi 协议级）+ 真机抓包重放实验，合集与独立插件中均**默认开启**，可在插件「参数」中切换（`netease_vip` 布尔开关；关闭时脚本直接放行，不解密、零开销）：
+基于网易云音乐 **9.6.15 (com.netease.cloudmusic)** 脱壳 IPA 逆向分析（eapi 协议级）+ 真机抓包重放实验，**独立插件**（`NeteaseMusicVIP.plugin`）默认开启，可在插件「参数」中切换（`netease_vip` 布尔开关；关闭时脚本直接放行，不解密、零开销）。该功能不包含在去广告合集（AdBlockAll）中，需要单独安装：
 
 - **eapi 协议**（`NEExtensionEncryptor` / `CloudMusicCoSDK`）：API 路径 `/api/...` → `/eapi/...`；请求体为 `AES-128-ECB`（PKCS7）加密后的大写 hex（`params=<HEX>`），明文为 `path + "-36cd479b6b5-" + json + "-36cd479b6b5-" + hex(md5("nobody"+path+"use"+json+"md5forencrypt"))`；**响应体为 `AES-128-ECB(gzip(JSON))` 双层**（HTTP 层 `Content-Encoding: gzip`）。密钥 `e82ckenh8dichen8` 藏了两层：`__TEXT.__const` 里 UTF-16 交错的 base64 串 → 主密钥 `5f5f666f7e77420f1e2f42576e07223f` AES 解密 → 才得到分隔符与密钥本体
 - **链路修复（本插件请求侧脚本）**：网关带 `vary: Accept-Encoding`，把 eapi 请求头改为 `Accept-Encoding: identity` 后服务器返回**未压缩的纯 AES(JSON)**（实测确认），响应侧因此无需 gzip 依赖；改写后的 JSON 以纯文本返回即可——客户端 `decrypt:type:` 对 `len%16!=0` 的体解密失败会**原样放行**（`0x10175cb38` 处 `tst x2,#0xf`），上层照常 JSON 解析，无需重新加密

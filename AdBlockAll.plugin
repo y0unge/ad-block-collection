@@ -1,13 +1,13 @@
 #!name = 去广告合集
-#!desc = 闲鱼 + 京东 + 传祺 + 网易云音乐 去广告/解锁合一插件。闲鱼：开屏广告、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗、广告上报拦截（基于闲鱼 7.28.80 IPA 逆向）；京东：开屏广告(URL+POST body 双通道)、QUIC 旁路拦截、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、埋点上报域名屏蔽（基于京东 16.1.80 IPA 逆向+抓包）；传祺：开屏广告(广告位数据源+弹窗开关+登录页开屏视频)、悬浮/游戏/PK/签到/推荐广告、运营弹窗、社区/商城/车控 Banner、埋点域名屏蔽（基于传祺 6.2.0 IPA 逆向）；网易云：VIP 歌曲解锁（默认开启，插件参数中可关闭；eapi 协议级，试听 30 秒变整曲播放，基于 9.6.15 脱壳 IPA 逆向）。脚本已内置远程地址，安装即用。日志搜 [JD-FID]/[NM-VIP] 可观测京东拦截/网易云解锁命中（低耗电）。
+#!desc = 闲鱼 + 京东 + 传祺 去广告合一插件。闲鱼：开屏广告、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗、广告上报拦截（基于闲鱼 7.28.80 IPA 逆向）；京东：开屏广告(URL+POST body 双通道)、QUIC 旁路拦截、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、埋点上报域名屏蔽（基于京东 16.1.80 IPA 逆向+抓包）；传祺：开屏广告(广告位数据源+弹窗开关+登录页开屏视频)、悬浮/游戏/PK/签到/推荐广告、运营弹窗、社区/商城/车控 Banner、埋点域名屏蔽（基于传祺 6.2.0 IPA 逆向）。脚本已内置远程地址，安装即用。日志搜 [JD-FID] 可观测京东拦截命中（低耗电）。网易云音乐 VIP 解锁已拆分为独立插件 NeteaseMusicVIP，需要单独安装。
 #!author = y0unge, aoconch
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
-#!tag = 闲鱼,京东,传祺,网易云,去广告,解锁
+#!tag = 闲鱼,京东,传祺,去广告
 #!date = 2026-10-29
 
 # ================================================================
-# 去广告合集 (闲鱼 + 京东 + 传祺 + 网易云) Loon 插件
+# 去广告合集 (闲鱼 + 京东 + 传祺) Loon 插件
 #
 # 闲鱼部分: 基于 com.taobao.fleamarket 7.28.80 脱壳 IPA 逆向
 #   开屏广告   FishSplashAdManager 经 mtop.taobao.idlecommerce.splash.{ads,async.ads,config}
@@ -31,30 +31,14 @@
 #   Banner    社区/商圈/商城/车控/充电服务 bannerlist 系列
 #   埋点上报   神策/友盟/UT/EMAS/Rangers/高德日志域名 REJECT
 #
-# 网易云音乐部分: 基于 com.netease.cloudmusic 9.6.15 脱壳 IPA 逆向
-#   VIP 解锁   eapi 协议级: 响应为 AES-128-ECB 原始密文(密钥 e82ckenh8dichen8,
-#              CloudMusicCoSDK, 参数经 UTF-16 交错 base64 + 主密钥 AES 二级封装
-#              隐藏于 __TEXT.__const)；VIP 试听 30s 裁剪是客户端行为 ——
-#              /eapi/song/enhance/player/url 响应中 freeTrialInfo 之外 url 即完整
-#              音频文件，解密置空后整曲播放；privilege(payed/pl/dl/st) 修补使
-#              VIP 歌曲点击直接进入播放。默认开启，插件参数中可关闭。
-#
 # 使用说明:
 #   1. Loon 安装并信任 CA 证书，开启 MITM 总开关
 #   2. 安装本插件即可，脚本经远程地址自动加载
 #   3. 如只需单个 App 的去广告，可安装 XianyuAdBlock / JDAdBlock /
-#      TrumpchiAdBlock 单项插件；只要网易云解锁可装 NeteaseMusicVIP
-#   4. 网易云 VIP 解锁默认开启：不需要可在插件参数中把 netease_vip 关闭
+#      TrumpchiAdBlock 单项插件
+#   4. 网易云音乐 VIP 解锁为独立插件 NeteaseMusicVIP(含换源/降级模式)，
+#      需要时从仓库单独安装，不在本合集内
 # ================================================================
-
-[Argument]
-# 网易云 VIP 解锁开关(默认开启; 不需要可关闭)
-# 关闭时脚本直接放行, 不做任何解密, 零开销
-netease_vip = boolean,true,网易云音乐 VIP 歌曲解锁（默认开启，去掉 VIP 弹窗与试听限制；关闭后完全放行零开销）
-# 音源 API 地址(可选): 填 UnblockNeteaseMusic/getunm 兼容服务地址后,
-# 对试听/付费歌曲按 歌名+歌手+时长 换源替换为完整音频直链(真正的整曲播放);
-# 留空则为降级模式(仅解除试听限制交互, 音频仍为官方 30s 切片)
-unm_url = string,,音源 API 地址（可选，UnblockNeteaseMusic/getunm 兼容服务；填写后试听歌曲将换源为完整音频）
 
 [Rule]
 # --- 京东: 屏蔽 QUIC/UDP，强制走 TCP 以便 MITM 解密 ---
@@ -205,20 +189,9 @@ response if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|
 # 开屏广告数据源(positionCode=1) + 登录页开屏视频: 返回"成功但无广告",
 # 避免 reject 触发本地缓存/兜底展示 (参考闲鱼教训; Loon 日志搜 [GAC-AD])
 http-response ^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*app-api\/(?:baseinfo\/advertise\/getAdvertiseByPositionCode|login\/getLoginVideoAndCover) requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/TrumpchiSplashFix.js, tag=传祺_开屏响应篡改
-# ==================== 网易云音乐: VIP 歌曲解锁 (默认开启, 参数 netease_vip 可关闭) ====================
-# eapi 响应为 AES-128-ECB 密文(密钥 e82ckenh8dichen8) 内层通常还有 gzip。
-# 请求侧脚本先把 Accept-Encoding 改成 identity, 让服务器返回不压缩密文
-# (实测网关带 vary: Accept-Encoding), 响应侧因此无需 gzip 处理;
-# 解密后: 歌名缓存 + privilege/试听字段修补, 参数 unm_url 配置音源 API 时
-# 对试听/付费歌曲换源替换完整直链。关闭时直接放行零开销。
-# 覆盖: 播放/下载 URL(核心)、privilege、歌曲/歌单详情、搜索、每日推荐、
-# batch 聚合、心动模式
-http-request ^https?:\/\/(?:[^\/]+\.)?music\.163\.com\/eapi\/(?:song\/enhance\/(?:player|download)\/url(?:\/v1)?|song\/enhance\/privilege|v3\/song\/detail|v[36]\/playlist\/detail|playlist\/detail|(?:cloud)?search|v1\/discovery|v3\/discovery|batch|playmode\/intelligence) requires-body=0, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/netease_music_vip_req.js, tag=网易云_VIP请求头修正
-http-response ^https?:\/\/(?:[^\/]+\.)?music\.163\.com\/eapi\/(?:song\/enhance\/(?:player|download)\/url(?:\/v1)?|song\/enhance\/privilege|v3\/song\/detail|v[36]\/playlist\/detail|playlist\/detail|(?:cloud)?search|v1\/discovery|v3\/discovery|batch|playmode\/intelligence) requires-body=1, binary-body-mode=true, timeout=30, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/netease_music_vip.js, tag=网易云_VIP解锁
 
 [MITM]
 # 低耗电: 京东侧仅保留有 Rewrite/Script 规则实际命中的域名(mars/policy 已 REJECT，
 # api/routine/color/waapdg 无规则引用)；闲鱼侧已覆盖 goofish.com 新网关(2026-10-29
-# 抓包确认 mtop 网关迁移)+旧 taobao.com 网关；传祺通配保持不变(收窄会漏广告)；
-# 网易云仅 API 域(音频文件走 music.126.net CDN 不解密)
-hostname = acs.m.goofish.com, g-acs.m.goofish.com, acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com, api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, *.gacmotor.com, *.gacne.com.cn, *.gace.com.cn, music.163.com, *.music.163.com
+# 抓包确认 mtop 网关迁移)+旧 taobao.com 网关；传祺通配保持不变(收窄会漏广告)
+hostname = acs.m.goofish.com, g-acs.m.goofish.com, acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com, api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, *.gacmotor.com, *.gacne.com.cn, *.gace.com.cn
