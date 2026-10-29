@@ -29,6 +29,7 @@ Loon 去广告插件合集，包含**闲鱼**与**京东**的去广告插件。
 - **小游戏/互动激励广告**：`game.iaa.ads` 等（看广告得奖励类，如需保留可删插件内对应行）
 - **鱼塘弹窗**：`mtop.taobao.idle.fishpool.poplayerinfo`
 - **广告上报拦截**：`mtop.idle.ad.{click,expose}`、`mtop.ali.ad.settle.*`、Tanx/广点通/穿山甲等广告域名
+- **联盟开屏兜底通道拦截**：Fanti 广告SDK（优酷/阿里文娱联盟，`ssp.iytcdn.com`，含 `ft_ad_splash_enable_key` 开屏开关与 `union/api/ps` 广告请求）与 BeiZi 聚合 SDK（`bid.ad-scope.com.cn` s2s 竞价、`sdk.beizi.biz`）。自有 mtop 开屏被拦截后，App 会经这两条联盟通道兜底拉取开屏，且素材/配置会缓存到本地（展示时无网络请求），属"偶发一次、日志无记录"的漏网来源
 
 如需过滤首页顶部运营 Banner，可在 `XianyuAdBlock.js` 的 `AD_MARKERS` 中加入 `fish_home_banner`。
 

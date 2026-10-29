@@ -69,6 +69,11 @@ DOMAIN,bridge.bytedance.com,REJECT
 DOMAIN,e.kuaishou.com,REJECT
 DOMAIN,mobads.baidu.com,REJECT
 DOMAIN,mobads-logs.baidu.com,REJECT
+# --- 闲鱼: Fanti (优酷/阿里文娱联盟) 广告SDK: 联盟开屏兜底/激励视频 (ssp.iytcdn.com) ---
+DOMAIN-SUFFIX,iytcdn.com,REJECT
+# --- 闲鱼: BeiZi 广告聚合SDK: s2s竞价与接口 (bid.ad-scope.com.cn / sdk.beizi.biz) ---
+DOMAIN-SUFFIX,ad-scope.com.cn,REJECT
+DOMAIN-SUFFIX,beizi.biz,REJECT
 
 [Rewrite]
 # ==================== 闲鱼 ====================# --- 开屏广告 (FishSplashAd) ---
