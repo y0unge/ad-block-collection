@@ -50,6 +50,17 @@ console.warn(
     url.slice(0, 120)
 );
 
+// Write-through into the exportable Loon system log: query a bogus
+// <tag>.jddebug.com subdomain (JD authoritative DNS drops unknown labels),
+// the guaranteed timeout emits a Warn line "[DNS O UDP] Send A query
+// for:jdfid-req-<fid>.jddebug.com" visible in the system log export.
+try {
+  $http.get(
+    "http://jdfid-req-" + (fid || "none").replace(/[^a-zA-Z0-9]/g, "-").slice(0, 40) + ".jddebug.com/p",
+    function () {}
+  );
+} catch (e) {}
+
 if (fid && REJECT_FIDS[fid]) {
   $done({
     response: {

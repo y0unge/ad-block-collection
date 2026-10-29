@@ -49,7 +49,8 @@ DOMAIN,jra.jd.com,REJECT
 DOMAIN,sdkfp.jd.com,REJECT
 DOMAIN,device-security-url.jd.com,REJECT
 DOMAIN,policy.jd.com,REJECT
-DOMAIN-SUFFIX,jddebug.com,REJECT
+# 注: jddebug.com 不做 REJECT —— 脚本用 <tag>.jddebug.com 的必超时 DNS 查询
+# 把观测日志写进 Loon 系统日志(京东权威 DNS 丢弃陌生子域查询, 天然不可解析)
 # --- 京东: 广告 ---
 DOMAIN,im-x.jd.com,REJECT
 DOMAIN,imgcps.jd.com,REJECT

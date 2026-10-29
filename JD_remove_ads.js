@@ -33,6 +33,15 @@ const fid = pickFunctionId();
 // 拦截/清理观测日志（Warning 级，Loon 日志搜 [JD-FID]）
 console.warn("[JD-FID] " + ($request.method || "GET") + " fid=" + (fid || "(none)") + " url=" + url.slice(0, 100));
 
+// 写入可导出的 Loon 系统日志: 查询 <tag>.jddebug.com(京东权威 DNS 丢弃陌生子域查询, 必超时),
+// 超时产生 Warn 行 "[DNS O UDP] Send A query for:jdfid-res-<fid>.jddebug.com timeout"
+try {
+  $http.get(
+    "http://jdfid-res-" + (fid || "none").replace(/[^a-zA-Z0-9]/g, "-").slice(0, 40) + ".jddebug.com/p",
+    function () {}
+  );
+} catch (e) {}
+
 const TITLE_RE =
   /为你推荐|潮流好货|推荐榜单|快点来看看|你可能还喜欢|猜你喜欢|AI推荐|好物推荐|热门推荐|精选推荐|看了又看|相似好物/;
 
@@ -206,10 +215,21 @@ if (fid === "deliverLayer" || fid === "orderTrackBusiness") {
   if (obj?.floors) obj.floors = scrub(obj.floors);
   if (obj?.others?.floors) obj.others.floors = scrub(obj.others.floors);
 } else if (fid === "start") {
+  const hadAds =
+    (Array.isArray(obj?.images) && obj.images.length > 0) || !!obj?.startADImage;
   if (obj?.images?.length) obj.images = [];
   if (obj?.showTimesDaily) obj.showTimesDaily = 0;
   // IPA(16.1.80)逆向补充：开屏广告单图字段
   if ("startADImage" in obj) delete obj.startADImage;
+  if (hadAds) {
+    // 人证信号: 开屏素材被下发且已被清理
+    try {
+      $notification.post("JD去广告", "开屏素材已拦截清理", "");
+    } catch (e) {}
+    try {
+      $http.get("http://jdfid-res-start-ads.jddebug.com/p", function () {});
+    } catch (e) {}
+  }
 } else if (fid === "welcomeHome") {
   if (obj?.floorList?.length) {
     const delItems = ["bottomXview", "float", "photoCeiling", "recommend", "ruleFloat", "searchIcon", "topRotate", "tabBarAtmosphere"];
