@@ -26,7 +26,7 @@
 #              /mall/...)，与 IPA 裸路径不同，规则已用通配前缀兼容两种形态
 #   埋点上报   神策 gets.gacmotor.com:8443/sa、友盟 ulogs/cnlogs/alogsus/
 #              alogus/log.umsns/c.umsns、阿里 UT h-adashx.ut.taobao.com、
-#              EMAS adash.man.aliyuncs.com、字节 RangersAppLog
+#              EMAS adash.man.aliyuncs.com、app-emas.gacmotor.com、字节 RangersAppLog
 #              volceapplog.com、高德日志 logs.amap.com、华为 Ads 素材
 #              cdn.adscloud.huawei.com(.cn)
 #
@@ -55,6 +55,8 @@ DOMAIN,c.umsns.com,REJECT
 DOMAIN,h-adashx.ut.taobao.com,REJECT
 DOMAIN,adash.man.aliyuncs.com,REJECT
 DOMAIN,service-usertrack.alibaba-inc.com,REJECT
+# 传祺自有域名的 EMAS 上报 (app-emas.gacmotor.com:5443/u/...，2026-10-29 抓包)
+DOMAIN,app-emas.gacmotor.com,REJECT
 # 高德日志上报 (仅拦日志域，地图/定位功能域名不拦)
 DOMAIN,logs.amap.com,REJECT
 DOMAIN,dualstack-logs.amap.com,REJECT

@@ -3,7 +3,7 @@
 #!author = y0unge
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
-#!date = 2026-10-28
+#!date = 2026-10-29
 
 # ================================================================
 # 闲鱼 (com.taobao.fleamarket) 去广告 Loon 插件
@@ -51,7 +51,7 @@
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.ali\.ad\.settle\.(?:brand\.log|cpc\.click|cpm\.click|tanx\.click|tianhe\.click)\/ url reject
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.tmall\.jiuxi\.activity\.ad\.upstream\.report\.(?:click|impression)\/ url reject
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.(?:life\.ad\.click\.get|o2o\.ad\.(?:action|exposure|gateway)\.get)\/ url reject
-^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.idle\.idleadv\.(?:app\.launch\.report|xyflowin\.upload)\/ url reject
+^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.idle\.idleadv\.(?:app\.launch\.report|xyflowin\.upload|scene\.restore)\/ url reject
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home\.pop\.interest\.upload\/ url reject
 
 [Script]
@@ -81,6 +81,9 @@ DOMAIN,mobads.baidu.com,REJECT
 DOMAIN,mobads-logs.baidu.com,REJECT
 # Fanti (优酷/阿里文娱联盟) 广告SDK: 联盟开屏兜底/激励视频/广告配置 (ssp.iytcdn.com)
 DOMAIN-SUFFIX,iytcdn.com,REJECT
+# 优酷联盟视频SDK配置 (sealine.youku.com/sdkconfig_*.xml; 商品视频走 vod.300hu.com
+# 不受影响。2026-10-29 抓包: 该域 DNS 解析为空仍反复重试)
+DOMAIN,sealine.youku.com,REJECT
 # BeiZi 广告聚合SDK: s2s竞价与接口 (bid.ad-scope.com.cn / sdk.beizi.biz)
 DOMAIN-SUFFIX,ad-scope.com.cn,REJECT
 DOMAIN-SUFFIX,beizi.biz,REJECT
