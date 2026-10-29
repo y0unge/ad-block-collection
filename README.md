@@ -1,14 +1,15 @@
 ﻿# 去广告合集
 
-Loon 去广告插件合集，包含**闲鱼**与**京东**的去广告插件。
+Loon 去广告插件合集，包含**闲鱼**、**京东**与**广汽传祺**的去广告插件。
 
 ## 插件一览
 
 | 插件 | 覆盖范围 | 安装链接（Loon → 插件 → 从链接安装） |
 | --- | --- | --- |
-| **去广告合集** (AdBlockAll) | 闲鱼 + 京东，一键全装 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/AdBlockAll.plugin` |
+| **去广告合集** (AdBlockAll) | 闲鱼 + 京东 + 传祺，一键全装 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/AdBlockAll.plugin` |
 | **闲鱼去广告** (XianyuAdBlock) | 仅闲鱼 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.plugin` |
 | **京东去广告** (JDAdBlock) | 仅京东 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JDAdBlock.plugin` |
+| **传祺去广告** (TrumpchiAdBlock) | 仅广汽传祺 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/TrumpchiAdBlock.plugin` |
 
 脚本（`XianyuAdBlock.js` / `JD_remove_ads.js`）已通过插件内远程地址引用，无需手动安装。
 
@@ -53,6 +54,24 @@ Loon 去广告插件合集，包含**闲鱼**与**京东**的去广告插件。
 2. Script 使用 Loon 3.5.1(983)+ 新语法（实测旧语法 `http-request` 在部分环境不触发）
 3. 修复原脚本空响应时的双 `$done` 问题
 4. QUIC/UDP 拦截规则与埋点域名屏蔽
+
+## 传祺去广告
+
+基于广汽传祺 App **6.2.0 (com.cloudyoung.TrumpchiCarSalesDev)** 脱壳 IPA 逆向分析，覆盖：
+
+- **开屏广告**：App 启动时 `checkPostOrAdvertiseForOpenPageWithModel:` 展示"帖子或广告"开屏页，广告数据统一走 `/app-api/baseinfo/advertise/getAdvertiseByPositionCode`（全 App 广告位数据源），拦截后无广告可展示；抓包确认 `positionCode=1` 为开屏广告、`82` 为首页右下悬浮广告。**采用响应篡改**（`TrumpchiSplashFix.js` 返回 `{"data":[],"resultCode":"0"}`，业务层主动跳过），而非 reject——避免 App 按接口失败处理走本地缓存/兜底展示（与闲鱼 `XianyuSplashFix.js` 同一教训）；Loon 日志搜 `[GAC-AD]` 可观测命中
+- **开屏弹窗开关**：`/app-api/baseinfo/advertise/isalert`
+- **登录页开屏视频/封面**：`/app-api/login/getLoginVideoAndCover`
+- **页面广告**：首页右下角悬浮（`rightBtmAdModel`）、游戏（`gameAdModel`）、PK（`pkAdModel`）、签到页（`signAdvertiseModel`）、推荐（`recommendModel`）——均为 `YYAdvertiseModel`，随广告位数据源一并切断
+- **运营弹窗**：`/app-api/car/activity/v2/popup`、车控学堂任务弹窗 `/car-api/leopard/school/home/taskPopup`、运动弹窗 `/car-api/vcontrol/sport/avpopup`、车控端弹窗文本 `selectPopupText`
+- **Banner**：社区/商圈/商城/车控/充电服务 `bannerlist` 系列接口（充电服务路径较通用，已限定广汽域名避免误伤其他 App）
+- **埋点上报拦截**：神策（`gets.gacmotor.com:8443/sa`）、友盟（`ulogs/cnlogs/alogsus/alogus.umeng.com`、`log.umsns.com` 等）、阿里 UT（`h-adashx.ut.taobao.com`）、EMAS（`adash.man.aliyuncs.com`）、字节 RangersAppLog（`volceapplog.com`）、高德日志（`logs.amap.com`，地图/定位功能域名不受影响）
+- **广告素材 CDN**：华为 Ads（`cdn.adscloud.huawei.com(.cn)`）
+- **MITM 通配**：`*.gacmotor.com`、`*.gacne.com.cn`、`*.gace.com.cn`，覆盖生产/预发/测试环境域名（该包为 Dev 构建，可能连测试环境）
+
+**网关前缀修复（生产抓包发现）**：生产环境 API 经网关路由时路径带模块前缀（`next.gacmotor.com/app/app-api/...`、`/mall/content-app/...`），与 IPA 内的裸路径（`/app-api/...`）不同，导致首版规则全部漏网。现所有 Rewrite 规则已用 `(?:[a-z0-9\-]+\/)*` 通配任意层网关前缀，两种路径形态均可命中。
+
+**仍见开屏的排查提示**：若更新插件后仍偶见开屏，依次确认——1) Loon 中插件已是最新版（插件详情看日期/重新安装）；2) MITM 总开关开启且已信任 CA 证书；3) Loon 日志搜 `[GAC-AD]`，命中说明脚本在生效，未命中则说明请求未走 MITM（检查是否被其他规则直连/分流）；4) 杀掉 App 重启验证（App 可能把开屏素材缓存到本地，接口被拦后短时间内仍可能展示一次缓存素材）。
 
 ## 致谢
 

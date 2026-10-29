@@ -1,0 +1,112 @@
+#!name = 传祺去广告
+#!desc = 基于 6.2.0 脱壳 IPA 逆向 + 生产抓包：开屏广告(广告位数据源响应篡改返回"成功但无广告"，避免 reject 触发缓存兜底；登录页开屏视频)、首页右下悬浮/游戏/PK/签到/推荐广告、活动/任务/车控弹窗、社区/商城/车控 Banner、埋点上报域名屏蔽。日志搜 [GAC-AD] 观测命中。
+#!author = y0unge
+#!homepage = https://github.com/y0unge/ad-block-collection
+#!category = 去广告
+#!tag = 广汽传祺,去广告,开屏
+#!date = 2026-10-29
+
+# ================================================================
+# 广汽传祺 (com.cloudyoung.TrumpchiCarSalesDev 6.2.0) 去广告 Loon 插件
+#
+# 基于 6.2.0 脱壳 IPA 逆向分析 + 生产抓包验证:
+#   开屏广告   checkPostOrAdvertiseForOpenPageWithModel: 启动时展示
+#              "帖子或广告"开屏页；全 App 广告位数据源统一走
+#              YYAdvertisePositionApi → /app-api/baseinfo/advertise/getAdvertiseByPositionCode
+#              (抓包确认: positionCode=1 为开屏广告、82 为首页右下悬浮，
+#               游戏/PK/签到/推荐均为 YYAdvertiseModel，切断数据源即全部不展示)
+#   开屏弹窗   YYAdvertiseIsAlertApi → /app-api/baseinfo/advertise/isalert
+#   开屏视频   登录页背景视频/封面 → /app-api/login/getLoginVideoAndCover
+#   运营弹窗   /app-api/car/activity/v2/popup、车控学堂任务弹窗
+#              /car-api/leopard/school/home/taskPopup、运动弹窗
+#              /car-api/vcontrol/sport/avpopup、
+#              /gacmotor-vehicle-app/v1/popup/text/selectPopupText
+#   Banner    社区/商圈/商城/车控/充电服务各模块 bannerlist 系列接口
+#   网关前缀   生产环境经网关路由路径带模块前缀(next.gacmotor.com/app/...、
+#              /mall/...)，与 IPA 裸路径不同，规则已用通配前缀兼容两种形态
+#   埋点上报   神策 gets.gacmotor.com:8443/sa、友盟 ulogs/cnlogs/alogsus/
+#              alogus/log.umsns/c.umsns、阿里 UT h-adashx.ut.taobao.com、
+#              EMAS adash.man.aliyuncs.com、字节 RangersAppLog
+#              volceapplog.com、高德日志 logs.amap.com、华为 Ads 素材
+#              cdn.adscloud.huawei.com(.cn)
+#
+# 使用说明:
+#   1. Loon 安装并信任 CA 证书，开启 MITM 总开关
+#   2. 安装本插件即可
+#   3. MITM 采用 *.gacmotor.com 等通配，覆盖生产/预发/测试环境 API 域名
+# ================================================================
+
+[Rule]
+# --- 埋点/统计上报域名 (基于 IPA 逆向) ---
+# 神策埋点 (gets.gacmotor.com:8443/sa?project=production)
+DOMAIN,gets.gacmotor.com,REJECT
+# 字节 RangersAppLog 埋点
+DOMAIN-SUFFIX,volceapplog.com,REJECT
+# 友盟日志上报
+DOMAIN,ulogs.umeng.com,REJECT
+DOMAIN,ulogs.umengcloud.com,REJECT
+DOMAIN,cnlogs.umeng.com,REJECT
+DOMAIN,cnlogs.umengcloud.com,REJECT
+DOMAIN,alogsus.umeng.com,REJECT
+DOMAIN,alogus.umeng.com,REJECT
+DOMAIN,log.umsns.com,REJECT
+DOMAIN,c.umsns.com,REJECT
+# 阿里 UT / EMAS / usertrack 埋点
+DOMAIN,h-adashx.ut.taobao.com,REJECT
+DOMAIN,adash.man.aliyuncs.com,REJECT
+DOMAIN,service-usertrack.alibaba-inc.com,REJECT
+# 高德日志上报 (仅拦日志域，地图/定位功能域名不拦)
+DOMAIN,logs.amap.com,REJECT
+DOMAIN,dualstack-logs.amap.com,REJECT
+# --- 广告素材 CDN ---
+# 华为 Ads 素材 (Info.plist 内置 HMS Ads 引用)
+DOMAIN,cdn.adscloud.huawei.com,REJECT
+DOMAIN,cdn.adscloud.huawei.com.cn,REJECT
+
+[Rewrite]
+# 网关前缀说明: 生产环境 API 经网关路由时路径带模块前缀(实测抓包:
+#   next.gacmotor.com/app/app-api/...、next.gacmotor.com/mall/content-app/...)
+#   与 IPA 内裸路径(/app-api/...)不同，故所有规则用 (?:[a-z0-9\-]+\/)*
+#   通配任意层网关前缀，两种形态均可命中
+# ==================== 开屏广告 ====================
+# 开屏广告数据源(positionCode=1)与登录页开屏视频改用响应篡改
+# (返回"成功但无广告"),避免 reject 触发本地缓存/兜底展示:
+#   拦截后若返回 {},App 按接口失败处理会展示本地缓存的开屏素材,
+#   返回 {"data":[],"resultCode":"0"} 业务层主动跳过 (参考闲鱼教训)
+# 广告位数据源: 开屏(positionCode=1)/首页右下悬浮(positionCode=82)/
+# 游戏/PK/签到/推荐广告均走此接口,一并断粮
+# ==================== 运营弹窗 ====================
+# 开屏广告弹窗开关
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*app-api\/baseinfo\/advertise\/isalert url reject-dict
+# 活动弹窗
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*app-api\/car\/activity\/v2\/popup url reject-dict
+# 车控学堂任务弹窗
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*car-api\/leopard\/school\/home\/taskPopup url reject-dict
+# 运动弹窗
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*car-api\/vcontrol\/sport\/avpopup url reject-dict
+# 车控端弹窗文本
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*gacmotor-vehicle-app\/v1\/popup\/text\/selectPopupText url reject-dict
+# ==================== Banner ====================
+# 社区首页 Banner
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*community-api\/community\/api\/bannerlist url reject-dict
+# 社区商圈信息 Banner
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*community-api\/community\/api\/post\/getcircleinfobanner url reject-dict
+# 商圈活动 Banner
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*circle-api\/activity\/activityBanner\/list url reject-dict
+# 商城商品 Banner
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*mall-api\/commodity\/bannerList url reject-dict
+# 商城首页子分类 Banner
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*mall-api\/mall\/home\/querySubCategoryBannerList url reject-dict
+# 车控端 Banner
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*gacmotor-vehicle-app\/v1\/banner\/selectList url reject-dict
+# 充电服务 Banner (路径较通用，限定广汽域名避免误伤其他 App)
+^https?:\/\/[a-z0-9\.\-]*gac(?:motor|ne|e)[a-z0-9\.\-]*\.com(?:\.cn)?\/(?:[a-z0-9\-]+\/)*api\/bannerlist url reject-dict
+^https?:\/\/[a-z0-9\.\-]*gac(?:motor|ne|e)[a-z0-9\.\-]*\.com(?:\.cn)?\/(?:[a-z0-9\-]+\/)*v1\/banner\/selectList url reject-dict
+
+[Script]
+# 开屏广告数据源 + 登录页开屏视频: 响应篡改返回"成功但无广告"
+# (http-response 脚本, 见 TrumpchiSplashFix.js; Loon 日志搜 [GAC-AD])
+http-response ^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*app-api\/(?:baseinfo\/advertise\/getAdvertiseByPositionCode|login\/getLoginVideoAndCover) requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/TrumpchiSplashFix.js, tag=传祺_开屏响应篡改
+
+[MITM]
+hostname = *.gacmotor.com, *.gacne.com.cn, *.gace.com.cn

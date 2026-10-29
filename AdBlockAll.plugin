@@ -1,13 +1,13 @@
 #!name = 去广告合集
-#!desc = 闲鱼 + 京东 去广告合一插件。闲鱼：开屏广告、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗、广告上报拦截（基于闲鱼 7.28.80 IPA 逆向）；京东：开屏广告(URL+POST body 双通道)、QUIC 旁路拦截、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、埋点上报域名屏蔽（基于京东 16.1.80 IPA 逆向+抓包）。脚本已内置远程地址，安装即用。日志搜 [JD-FID] 可观测京东接口流水。
+#!desc = 闲鱼 + 京东 + 传祺 去广告合一插件。闲鱼：开屏广告、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗、广告上报拦截（基于闲鱼 7.28.80 IPA 逆向）；京东：开屏广告(URL+POST body 双通道)、QUIC 旁路拦截、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、埋点上报域名屏蔽（基于京东 16.1.80 IPA 逆向+抓包）；传祺：开屏广告(广告位数据源+弹窗开关+登录页开屏视频)、悬浮/游戏/PK/签到/推荐广告、运营弹窗、社区/商城/车控 Banner、埋点域名屏蔽（基于传祺 6.2.0 IPA 逆向）。脚本已内置远程地址，安装即用。日志搜 [JD-FID] 可观测京东接口流水。
 #!author = y0unge, aoconch
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
-#!tag = 闲鱼,京东,去广告
+#!tag = 闲鱼,京东,传祺,去广告
 #!date = 2026-10-29
 
 # ================================================================
-# 去广告合集 (闲鱼 + 京东) Loon 插件
+# 去广告合集 (闲鱼 + 京东 + 传祺) Loon 插件
 #
 # 闲鱼部分: 基于 com.taobao.fleamarket 7.28.80 脱壳 IPA 逆向
 #   开屏广告   FishSplashAdManager 经 mtop.taobao.idlecommerce.splash.{ads,async.ads,config}
@@ -22,10 +22,20 @@
 #   推荐楼层   楼层 mId/标题匹配递归清理 (uniformRecommend 等接口)
 #   埋点上报   mars.jd.com 等 18 个上报域名 REJECT
 #
+# 传祺部分: 基于 com.cloudyoung.TrumpchiCarSalesDev 6.2.0 脱壳 IPA 逆向
+#   开屏广告   checkPostOrAdvertiseForOpenPageWithModel: 启动展示"帖子或广告"开屏页，
+#              全 App 广告位数据源统一走 getAdvertiseByPositionCode，
+#              开屏弹窗开关 advertise/isalert、登录页开屏视频 getLoginVideoAndCover
+#   页面广告   首页右下悬浮/游戏/PK/签到/推荐广告 (均为 YYAdvertiseModel)
+#   运营弹窗   car/activity/v2/popup、车控任务/运动弹窗、selectPopupText
+#   Banner    社区/商圈/商城/车控/充电服务 bannerlist 系列
+#   埋点上报   神策/友盟/UT/EMAS/Rangers/高德日志域名 REJECT
+#
 # 使用说明:
 #   1. Loon 安装并信任 CA 证书，开启 MITM 总开关
 #   2. 安装本插件即可，脚本经远程地址自动加载
-#   3. 如只需单个 App 的去广告，可安装 XianyuAdBlock / JDAdBlock 单项插件
+#   3. 如只需单个 App 的去广告，可安装 XianyuAdBlock / JDAdBlock /
+#      TrumpchiAdBlock 单项插件
 # ================================================================
 
 [Rule]
@@ -75,6 +85,30 @@ DOMAIN-SUFFIX,iytcdn.com,REJECT
 # --- 闲鱼: BeiZi 广告聚合SDK: s2s竞价与接口 (bid.ad-scope.com.cn / sdk.beizi.biz) ---
 DOMAIN-SUFFIX,ad-scope.com.cn,REJECT
 DOMAIN-SUFFIX,beizi.biz,REJECT
+# --- 传祺: 埋点/统计上报域名 (基于 6.2.0 IPA 逆向) ---
+# 神策埋点 (gets.gacmotor.com:8443/sa)
+DOMAIN,gets.gacmotor.com,REJECT
+# 字节 RangersAppLog 埋点
+DOMAIN-SUFFIX,volceapplog.com,REJECT
+# 友盟日志上报
+DOMAIN,ulogs.umeng.com,REJECT
+DOMAIN,ulogs.umengcloud.com,REJECT
+DOMAIN,cnlogs.umeng.com,REJECT
+DOMAIN,cnlogs.umengcloud.com,REJECT
+DOMAIN,alogsus.umeng.com,REJECT
+DOMAIN,alogus.umeng.com,REJECT
+DOMAIN,log.umsns.com,REJECT
+DOMAIN,c.umsns.com,REJECT
+# 阿里 UT / EMAS / usertrack 埋点
+DOMAIN,h-adashx.ut.taobao.com,REJECT
+DOMAIN,adash.man.aliyuncs.com,REJECT
+DOMAIN,service-usertrack.alibaba-inc.com,REJECT
+# 高德日志上报 (仅拦日志域，地图/定位功能域名不拦)
+DOMAIN,logs.amap.com,REJECT
+DOMAIN,dualstack-logs.amap.com,REJECT
+# --- 传祺: 广告素材 CDN (华为 Ads) ---
+DOMAIN,cdn.adscloud.huawei.com,REJECT
+DOMAIN,cdn.adscloud.huawei.com.cn,REJECT
 
 [Rewrite]
 # ==================== 闲鱼 ====================
@@ -105,6 +139,28 @@ DOMAIN-SUFFIX,beizi.biz,REJECT
 ^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=queryPagePopWindow - reject
 ^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=babelGetGuideTips - reject
 ^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=secondFloor - reject
+# ==================== 传祺 ====================
+# 网关前缀: 生产 API 经网关路由路径带模块前缀(next.gacmotor.com/app/app-api/...、
+# /mall/content-app/...)，与 IPA 裸路径不同，规则用 (?:[a-z0-9\-]+\/)* 通配兼容
+# --- 开屏广告: 数据源(positionCode=1)与登录页开屏视频走响应篡改脚本(见 [Script] 段,
+#     返回"成功但无广告"避免 reject 触发缓存兜底),此处不再 reject-dict ---
+# --- 开屏广告弹窗开关 ---
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*app-api\/baseinfo\/advertise\/isalert url reject-dict
+# --- 运营弹窗: 活动/车控任务/运动/车控端弹窗文本 ---
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*app-api\/car\/activity\/v2\/popup url reject-dict
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*car-api\/leopard\/school\/home\/taskPopup url reject-dict
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*car-api\/vcontrol\/sport\/avpopup url reject-dict
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*gacmotor-vehicle-app\/v1\/popup\/text\/selectPopupText url reject-dict
+# --- Banner: 社区/商圈/商城/车控/充电服务 ---
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*community-api\/community\/api\/bannerlist url reject-dict
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*community-api\/community\/api\/post\/getcircleinfobanner url reject-dict
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*circle-api\/activity\/activityBanner\/list url reject-dict
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*mall-api\/commodity\/bannerList url reject-dict
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*mall-api\/mall\/home\/querySubCategoryBannerList url reject-dict
+^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*gacmotor-vehicle-app\/v1\/banner\/selectList url reject-dict
+# 充电服务 Banner (路径较通用，限定广汽域名避免误伤其他 App)
+^https?:\/\/[a-z0-9\.\-]*gac(?:motor|ne|e)[a-z0-9\.\-]*\.com(?:\.cn)?\/(?:[a-z0-9\-]+\/)*api\/bannerlist url reject-dict
+^https?:\/\/[a-z0-9\.\-]*gac(?:motor|ne|e)[a-z0-9\.\-]*\.com(?:\.cn)?\/(?:[a-z0-9\-]+\/)*v1\/banner\/selectList url reject-dict
 
 [Script]
 # ==================== 闲鱼: 开屏频控归零 + 信息流/详情页广告卡片过滤 ====================
@@ -121,6 +177,10 @@ request if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(
 # 响应侧: aoconch 原版逻辑(fid 从 URL/body/嵌套 JSON 提取 + 楼层 mId/标题递归清理 + uniformRecommend 空包)
 # + 本仓库增强: startADImage 清理(16.1.80 IPA)、双 $done 修复、[JD-FID] 观测日志
 response if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(client\.action|api)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JD_remove_ads.js") with tag="京东_广告响应清理", timeout=20, requires_body=true
+# ==================== 传祺: 开屏广告响应篡改 ====================
+# 开屏广告数据源(positionCode=1) + 登录页开屏视频: 返回"成功但无广告",
+# 避免 reject 触发本地缓存/兜底展示 (参考闲鱼教训; Loon 日志搜 [GAC-AD])
+http-response ^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*app-api\/(?:baseinfo\/advertise\/getAdvertiseByPositionCode|login\/getLoginVideoAndCover) requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/TrumpchiSplashFix.js, tag=传祺_开屏响应篡改
 
 [MITM]
-hostname = acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com, api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, waapdg.jd.com, policy.jd.com, mars.jd.com, api.jd.com, routine.m.jd.com, color.jd.com
+hostname = acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com, api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, waapdg.jd.com, policy.jd.com, mars.jd.com, api.jd.com, routine.m.jd.com, color.jd.com, *.gacmotor.com, *.gacne.com.cn, *.gace.com.cn
