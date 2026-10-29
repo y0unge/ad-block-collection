@@ -221,6 +221,16 @@ if (fid === "deliverLayer" || fid === "orderTrackBusiness") {
   if (obj?.showTimesDaily) obj.showTimesDaily = 0;
   // IPA(16.1.80)逆向补充：开屏广告单图字段
   if ("startADImage" in obj) delete obj.startADImage;
+  // 频控/展示门槛全面压制(字段清单来自 16.1.80 IPA strings):
+  // 每日额度、展示标志、展示条件、CTR开关、视频开屏
+  const ZERO_KEYS = [
+    "showtimes", "showTimes", "start_isshow", "startIsshow",
+    "showcondition", "verCtrSwitch", "verCtrAllSwitch", "saoasaoSwitch",
+  ];
+  for (const k of ZERO_KEYS) if (k in obj) obj[k] = 0;
+  if ("ver14CloseSwitch" in obj) obj.ver14CloseSwitch = 1;
+  if (Array.isArray(obj.launchVideos)) obj.launchVideos = [];
+  if (Array.isArray(obj.LaunchVideos)) obj.LaunchVideos = [];
   if (hadAds) {
     // 人证信号: 开屏素材被下发且已被清理
     try {
