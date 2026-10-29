@@ -1,5 +1,5 @@
 #!name = 闲鱼去广告
-#!desc = 去除闲鱼开屏广告、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗，并拦截广告曝光点击上报。基于闲鱼 7.28.80 (com.taobao.fleamarket) IPA 逆向分析。脚本已内置远程地址，安装即用。
+#!desc = 去除闲鱼开屏广告、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗，并拦截广告曝光点击上报。基于闲鱼 7.28.80 (com.taobao.fleamarket) IPA 逆向分析；2026-10-29 抓包确认 mtop 网关已迁移至 goofish.com，MITM 已同步覆盖新网关。脚本已内置远程地址，安装即用。
 #!author = y0unge
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
@@ -8,6 +8,9 @@
 # ================================================================
 # 闲鱼 (com.taobao.fleamarket) 去广告 Loon 插件
 # 适配版本: 7.28.80 (脱壳 IPA 逆向)
+# 网关迁移: 2026-10-29 抓包确认 mtop 已整体走 goofish.com 域名
+#           (acs.m.goofish.com / g-acs.m.goofish.com)，脚本 URL 正则匹配任意
+#           host 故无需改动，[MITM] 已加入新网关域名
 #
 # 逆向依据:
 #   开屏广告   FishSplashAdManager 经 mtop.taobao.idlecommerce.splash.{ads,async.ads,config}
@@ -83,4 +86,7 @@ DOMAIN-SUFFIX,ad-scope.com.cn,REJECT
 DOMAIN-SUFFIX,beizi.biz,REJECT
 
 [MITM]
-hostname = acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com
+# 2026-10-29 抓包确认: 闲鱼 mtop 网关已迁移至 goofish.com 域名
+# (92/92 条业务请求走 acs.m.goofish.com / g-acs.m.goofish.com，含
+#  splash.async.ads 开屏接口)，旧 *.m.taobao.com 网关保留兼容
+hostname = acs.m.goofish.com, g-acs.m.goofish.com, acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com

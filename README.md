@@ -23,6 +23,8 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**与**广汽传祺**的
 
 基于闲鱼 **7.28.80 (com.taobao.fleamarket)** 脱壳 IPA 逆向分析，覆盖：
 
+- **网关迁移适配（2026-10-29 抓包发现）**：闲鱼 mtop 网关已整体迁移至 `acs.m.goofish.com` / `g-acs.m.goofish.com`（92/92 条业务请求，含 `splash.async.ads` 开屏接口），旧 `*.m.taobao.com` 网关域名已不再承载闲鱼流量。脚本 URL 正则匹配任意 host 无需改动，`[MITM]` 列表已加入新网关域名，旧域名保留兼容
+
 - **开屏广告**：`FishSplashAdManager` 经 `mtop.taobao.idlecommerce.splash.{ads,async.ads,config}` 拉取。采用**响应篡改**（`XianyuSplashFix.js`）：递归把响应中每日展示次数类字段（`maxShowCount`/`leftShowCount`/`showTimes*` 等按正则匹配，字段名无关）归零、广告开关置 false、素材列表清空，App 业务层判定"今日无可展示次数"主动跳过开屏——相比 reject 不会触发联盟兜底、素材重试与缓存展示（与京东 `showTimesDaily=0` 同思路）
 - **信息流广告卡片**（首页/同城）：`fish_home_advertise_card_d3/d4`、`fish_local_advertise_card_d4`、`idlefish_local_feed2_marketing`、`fish_home_feeds_pager_banner`（DinamicX 模板名匹配，脚本从响应中剔除）
 - **详情页推荐广告**：`detail_recommend_ad_card`

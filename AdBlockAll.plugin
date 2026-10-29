@@ -185,5 +185,6 @@ http-response ^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*app-api\/(?:baseinfo\/advert
 
 [MITM]
 # 低耗电: 京东侧仅保留有 Rewrite/Script 规则实际命中的域名(mars/policy 已 REJECT，
-# api/routine/color/waapdg 无规则引用)；闲鱼 mtop 网关与传祺通配保持不变(收窄会漏广告)
-hostname = acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com, api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, *.gacmotor.com, *.gacne.com.cn, *.gace.com.cn
+# api/routine/color/waapdg 无规则引用)；闲鱼侧已覆盖 goofish.com 新网关(2026-10-29
+# 抓包确认 mtop 网关迁移)+旧 taobao.com 网关；传祺通配保持不变(收窄会漏广告)
+hostname = acs.m.goofish.com, g-acs.m.goofish.com, acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com, api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, *.gacmotor.com, *.gacne.com.cn, *.gace.com.cn
