@@ -1,5 +1,5 @@
 #!name = 去广告合集
-#!desc = 闲鱼 + 京东 + 传祺 去广告合一插件。闲鱼：开屏广告、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗、广告上报拦截（基于闲鱼 7.28.80 IPA 逆向）；京东：开屏广告(URL+POST body 双通道)、QUIC 旁路拦截、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、埋点上报域名屏蔽（基于京东 16.1.80 IPA 逆向+抓包）；传祺：开屏广告(广告位数据源+弹窗开关+登录页开屏视频)、悬浮/游戏/PK/签到/推荐广告、运营弹窗、社区/商城/车控 Banner、埋点域名屏蔽（基于传祺 6.2.0 IPA 逆向）。脚本已内置远程地址，安装即用。日志搜 [JD-FID] 可观测京东接口流水。
+#!desc = 闲鱼 + 京东 + 传祺 去广告合一插件。闲鱼：开屏广告、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗、广告上报拦截（基于闲鱼 7.28.80 IPA 逆向）；京东：开屏广告(URL+POST body 双通道)、QUIC 旁路拦截、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、埋点上报域名屏蔽（基于京东 16.1.80 IPA 逆向+抓包）；传祺：开屏广告(广告位数据源+弹窗开关+登录页开屏视频)、悬浮/游戏/PK/签到/推荐广告、运营弹窗、社区/商城/车控 Banner、埋点域名屏蔽（基于传祺 6.2.0 IPA 逆向）。脚本已内置远程地址，安装即用。日志搜 [JD-FID] 可观测京东拦截命中（低耗电）。
 #!author = y0unge, aoconch
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
@@ -59,8 +59,8 @@ DOMAIN,jra.jd.com,REJECT
 DOMAIN,sdkfp.jd.com,REJECT
 DOMAIN,device-security-url.jd.com,REJECT
 DOMAIN,policy.jd.com,REJECT
-# 注: jddebug.com 不做 REJECT —— 脚本用 <tag>.jddebug.com 的必超时 DNS 查询
-# 把观测日志写进 Loon 系统日志(京东权威 DNS 丢弃陌生子域查询, 天然不可解析)
+# 注: jddebug.com 不做 REJECT —— 京东 App 自身会探测其随机子域(反劫持检测)；
+# 脚本已不再使用该域名做观测日志(低耗电优化，移除每请求必超时 DNS 查询)
 # --- 京东: 广告 ---
 DOMAIN,im-x.jd.com,REJECT
 DOMAIN,imgcps.jd.com,REJECT
@@ -170,12 +170,13 @@ http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.home\.nextnearb
 http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.(?:item\.detail|detail\.preget|awesome\.detail(?:\.unit)?)\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_详情页去广告
 # ==================== 京东 ====================
 # 请求侧: 读取 POST body 中的 functionId(京东新网络栈将 fid 序列化进 body，URL 匹配对其无效)，
-# 纯广告接口本地返回空 JSON，并记录全部 functionId 到脚本日志([JD-FID]，Warning 级)
+# 纯广告接口本地返回空 JSON，命中拦截时记录 [JD-FID] 日志(低耗电：不再全量流水/无观测 DNS 查询)
 # 覆盖全部 API 网关域名变体(UnitRouter 机制): api/api-q/squnit-api/quic-api.m.jd.com, api-ai/squnit-api-ai.jd.com
 # 注: 使用 Loon 3.5.1(983)+ 新语法(实测旧语法 http-request 在部分环境不触发)
 request if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(client\.action|api)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/jd_ad_request.js") with tag="京东_广告请求拦截", timeout=20, requires_body=true
 # 响应侧: aoconch 原版逻辑(fid 从 URL/body/嵌套 JSON 提取 + 楼层 mId/标题递归清理 + uniformRecommend 空包)
-# + 本仓库增强: startADImage 清理(16.1.80 IPA)、双 $done 修复、[JD-FID] 观测日志
+# + 本仓库增强: startADImage 清理(16.1.80 IPA)、双 $done 修复、[JD-FID] 命中日志、
+# 低耗电优化(无特征响应预检跳过/观测 DNS 查询移除)
 response if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(client\.action|api)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JD_remove_ads.js") with tag="京东_广告响应清理", timeout=20, requires_body=true
 # ==================== 传祺: 开屏广告响应篡改 ====================
 # 开屏广告数据源(positionCode=1) + 登录页开屏视频: 返回"成功但无广告",
@@ -183,4 +184,6 @@ response if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|
 http-response ^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*app-api\/(?:baseinfo\/advertise\/getAdvertiseByPositionCode|login\/getLoginVideoAndCover) requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/TrumpchiSplashFix.js, tag=传祺_开屏响应篡改
 
 [MITM]
-hostname = acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com, api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, waapdg.jd.com, policy.jd.com, mars.jd.com, api.jd.com, routine.m.jd.com, color.jd.com, *.gacmotor.com, *.gacne.com.cn, *.gace.com.cn
+# 低耗电: 京东侧仅保留有 Rewrite/Script 规则实际命中的域名(mars/policy 已 REJECT，
+# api/routine/color/waapdg 无规则引用)；闲鱼 mtop 网关与传祺通配保持不变(收窄会漏广告)
+hostname = acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com, api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, *.gacmotor.com, *.gacne.com.cn, *.gace.com.cn

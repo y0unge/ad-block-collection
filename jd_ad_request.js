@@ -4,9 +4,15 @@
  * The modern JD network stack (JDNetworkBaseAF) serializes functionId into
  * the POST body, leaving the URL bare ("/client.action?"), so URL-based
  * rewrites/scripts never match those requests. This script reads the body,
- * answers pure-ad endpoints locally with an empty JSON, and logs every
- * functionId to the Loon script console as "[JD-FID]" lines.
+ * answers pure-ad endpoints locally with an empty JSON.
+ *
+ * 低耗电优化（拦截效果不变）:
+ *   1. 移除每请求一次的 <tag>.jddebug.com 必超时 DNS 观测查询
+ *      （每会话数百个超时 DNS 重试定时器 + UDP 包 + Warn 日志，纯观测开销）
+ *   2. [JD-FID] 只在命中拦截时输出；DEBUG=true 可恢复全量流水排查
  */
+
+const DEBUG = false; // true: 输出全部 functionId 流水用于排查（平时保持 false 省电）
 
 const REJECT_FIDS = {
   queryPagePopWindow: 1, // page pop-up ads
@@ -41,27 +47,19 @@ if (!fid && typeof body === "string" && body.length > 0) {
   }
 }
 
-console.warn(
-  "[JD-FID] " +
-    ($request.method || "GET") +
-    " fid=" +
-    (fid || "(none)") +
-    " url=" +
-    url.slice(0, 120)
-);
-
-// Write-through into the exportable Loon system log: query a bogus
-// <tag>.jddebug.com subdomain (JD authoritative DNS drops unknown labels),
-// the guaranteed timeout emits a Warn line "[DNS O UDP] Send A query
-// for:jdfid-req-<fid>.jddebug.com" visible in the system log export.
-try {
-  $http.get(
-    "http://jdfid-req-" + (fid || "none").replace(/[^a-zA-Z0-9]/g, "-").slice(0, 40) + ".jddebug.com/p",
-    function () {}
+if (DEBUG) {
+  console.warn(
+    "[JD-FID] " +
+      ($request.method || "GET") +
+      " fid=" +
+      (fid || "(none)") +
+      " url=" +
+      url.slice(0, 120)
   );
-} catch (e) {}
+}
 
 if (fid && REJECT_FIDS[fid]) {
+  console.warn("[JD-FID] blocked fid=" + fid);
   $done({
     response: {
       status: 200,

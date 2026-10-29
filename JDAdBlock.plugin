@@ -1,5 +1,5 @@
 #!name = 京东去广告
-#!desc = 基于 16.1.80 脱壳 IPA 逆向 + 抓包分析：开屏广告(start/startADImage)、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、纯广告接口(URL+POST body 双通道)、QUIC 旁路拦截、埋点上报域名屏蔽。functionId 观测日志([JD-FID])便于排查漏网接口。
+#!desc = 基于 16.1.80 脱壳 IPA 逆向 + 抓包分析：开屏广告(start/startADImage)、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、纯广告接口(URL+POST body 双通道)、QUIC 旁路拦截、埋点上报域名屏蔽。命中拦截/清理时记录 [JD-FID] 日志（低耗电：无全量流水、无观测 DNS 查询、无特征响应预检跳过）。
 #!author = aoconch, y0unge
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
@@ -20,10 +20,13 @@
 #   4. startADImage 清理(16.1.80 IPA 逆向发现的开屏广告单图字段)
 #   5. 埋点/统计上报域名 REJECT(抓包 717 条请求中约 340 条)
 #   6. Script 使用 Loon 3.5.1(983)+ 新语法(旧语法 http-request 部分环境不触发)
+#   7. 低耗电优化: 移除每请求 jddebug.com 观测 DNS 查询、[JD-FID] 仅命中时记录、
+#      无特征响应预检跳过、uniformRecommend 提前返回、MITM 收窄至有规则命中的域名
 # 使用说明:
 #   1. Loon 安装并信任 CA 证书，开启 MITM 总开关
 #   2. 安装本插件即可，脚本经远程地址自动加载
-#   3. 观测: Loon 日志搜索 [JD-FID] 可见全部 functionId 流水
+#   3. 观测: Loon 日志搜索 [JD-FID] 可见拦截/清理命中流水
+#      (需全量流水排查时把脚本内 DEBUG 置为 true)
 # ================================================================
 
 [Rule]
@@ -47,8 +50,8 @@ DOMAIN,jra.jd.com,REJECT
 DOMAIN,sdkfp.jd.com,REJECT
 DOMAIN,device-security-url.jd.com,REJECT
 DOMAIN,policy.jd.com,REJECT
-# 注: jddebug.com 不做 REJECT —— 脚本用 <tag>.jddebug.com 的必超时 DNS 查询
-# 把观测日志写进 Loon 系统日志(京东权威 DNS 丢弃陌生子域查询, 天然不可解析)
+# 注: jddebug.com 不做 REJECT —— 京东 App 自身会探测其随机子域(反劫持检测)；
+# 脚本已不再使用该域名做观测日志(低耗电优化，移除每请求必超时 DNS 查询)
 # 广告
 DOMAIN,im-x.jd.com,REJECT
 DOMAIN,imgcps.jd.com,REJECT
@@ -65,10 +68,13 @@ DOMAIN,imgcps.jd.com,REJECT
 
 [Script]
 # 请求侧: 读取 POST body 中的 functionId，纯广告接口本地返回空 JSON，
-# 并记录全部 functionId 到脚本日志([JD-FID]，Warning 级)
+# 命中拦截时记录 [JD-FID] 日志(低耗电：不再全量流水/无观测 DNS 查询)
 request if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(client\.action|api)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/jd_ad_request.js") with tag="京东_广告请求拦截", timeout=20, requires_body=true
-# 响应侧: aoconch 原版逻辑 + 本仓库增强(startADImage 清理、双 $done 修复、[JD-FID] 日志)
+# 响应侧: aoconch 原版逻辑 + 本仓库增强(startADImage 清理、双 $done 修复、[JD-FID] 命中日志、
+# 无特征响应预检跳过/观测 DNS 查询移除的低耗电优化)
 response if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(client\.action|api)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JD_remove_ads.js") with tag="京东_广告响应清理", timeout=20, requires_body=true
 
 [MITM]
-hostname = api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, waapdg.jd.com, policy.jd.com, mars.jd.com, api.jd.com, routine.m.jd.com, color.jd.com
+# 低耗电: 仅保留有 Rewrite/Script 规则实际命中的域名 —— mars/policy 已 REJECT(规则先于
+# MITM 生效，无需解密)，api/routine/color/waapdg 无任何规则引用，解密纯属开销
+hostname = api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com
