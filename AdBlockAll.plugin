@@ -77,8 +77,10 @@ DOMAIN-SUFFIX,ad-scope.com.cn,REJECT
 DOMAIN-SUFFIX,beizi.biz,REJECT
 
 [Rewrite]
-# ==================== 闲鱼 ====================# --- 开屏广告 (FishSplashAd) ---
-^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlecommerce\.splash\.(?:ads|async\.ads|config)\/ url reject
+# ==================== 闲鱼 ====================
+# --- 开屏广告 (FishSplashAd) ---
+# 已改为响应篡改方案(见 [Script] 闲鱼_开屏频控归零): 频控字段归零让App主动跳过开屏,
+# 不再使用 reject(请求失败会触发联盟兜底/重试/缓存展示)。Fanti/BeiZi域名REJECT保留兜底。
 # --- 直播首页广告 ---
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.live\.home\.ads\.material\.get\/ url reject
 # --- 小游戏/互动激励广告 (看广告得奖励类，不需要可删除对应行) ---
@@ -105,7 +107,8 @@ DOMAIN-SUFFIX,beizi.biz,REJECT
 ^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=secondFloor - reject
 
 [Script]
-# ==================== 闲鱼: 信息流/详情页广告卡片过滤 ====================
+# ==================== 闲鱼: 开屏频控归零 + 信息流/详情页广告卡片过滤 ====================
+http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlecommerce\.splash\.(?:ads|async\.ads|config)\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuSplashFix.js, tag=闲鱼_开屏频控归零
 http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home(?:\.nextfresh)?\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_首页信息流去广告
 http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.home\.nextnearby\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_同城信息流去广告
 http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.(?:item\.detail|detail\.preget|awesome\.detail(?:\.unit)?)\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_详情页去广告
