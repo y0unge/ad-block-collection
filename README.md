@@ -6,7 +6,7 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的
 
 | 插件 | 覆盖范围 | 安装链接（Loon → 插件 → 从链接安装） |
 | --- | --- | --- |
-| **去广告合集** (AdBlockAll) | 闲鱼 + 京东 + 传祺 + 网易云（VIP 解锁默认关闭，参数中开启） | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/AdBlockAll.plugin` |
+| **去广告合集** (AdBlockAll) | 闲鱼 + 京东 + 传祺 + 网易云（VIP 解锁默认开启，参数中可关闭） | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/AdBlockAll.plugin` |
 | **闲鱼去广告** (XianyuAdBlock) | 仅闲鱼 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.plugin` |
 | **京东去广告** (JDAdBlock) | 仅京东 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JDAdBlock.plugin` |
 | **传祺去广告** (TrumpchiAdBlock) | 仅广汽传祺 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/TrumpchiAdBlock.plugin` |
@@ -79,7 +79,7 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的
 
 ## 网易云音乐 VIP 解锁
 
-基于网易云音乐 **9.6.15 (com.netease.cloudmusic)** 脱壳 IPA 逆向分析（eapi 协议级），**默认在合集插件中关闭、独立插件中开启**，均可在插件「参数」中切换（`netease_vip` 布尔开关；关闭时脚本直接放行，不解密、零开销）：
+基于网易云音乐 **9.6.15 (com.netease.cloudmusic)** 脱壳 IPA 逆向分析（eapi 协议级），合集与独立插件中**均默认开启**，均可在插件「参数」中切换（`netease_vip` 布尔开关；关闭时脚本直接放行，不解密、零开销）：
 
 - **eapi 协议**（`NEExtensionEncryptor` / `CloudMusicCoSDK`）：API 路径 `/api/...` → `/eapi/...`；请求体为 `AES-128-ECB` 加密后的大写 hex（`params=<HEX>`）；**响应体为原始 AES-128-ECB 密文**（非 hex），密钥 `e82ckenh8dichen8`——参数经「UTF-16 交错 base64 + 主密钥 `5f5f666f7e77420f1e2f42576e07223f` AES 二级封装」隐藏于 `__TEXT.__const`，需两级解包才得到 `-36cd479b6b5-` / `nobody` / `use` / `md5forencrypt` 与密钥本体
 - **VIP 限制的本质是客户端裁剪**：`/eapi/song/enhance/player/url(/v1)` 响应中 `freeTrialInfo{start,end}` 标记 30 秒试听窗口（`NMSongUrlInfo fillWithDictionary:` 解析），**URL 本身就是完整音频文件**——脚本解密后将 `freeTrialInfo/freeTrialPrivilege/freeTimeTrialPrivilege` 置空即整曲播放；同时递归 patch `privilege`（`payed/pl/dl/st`，灰色歌曲一并放开），使 VIP 歌曲点击直接进入播放流程
@@ -99,7 +99,7 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的
 - **闲鱼脚本瘦身**：响应不含任何广告卡片模板特征时直接放行（零解析）；嵌套 JSON 字符串仅在自身含特征时才二次解析；原地修改代替整棵对象树重建
 - **MITM 收窄**：京东侧仅保留有 Rewrite/Script 实际命中的域名（`mars`/`policy` 已 REJECT 无需解密，`api`/`routine`/`color`/`waapdg` 无规则引用）；闲鱼 mtop 网关与传祺通配保持不变（收窄会漏广告）；网易云仅 API 域（音频文件 CDN 不解密）
 - **开屏改响应篡改**：闲鱼/传祺开屏走"频控归零/成功但无广告"响应篡改而非 reject，避免触发联盟兜底、素材重试与缓存展示（重试风暴本身就是耗电来源）
-- **网易云解锁零开销关闭态**：合集插件中 `netease_vip` 默认关闭，脚本在参数检查处直接 `$done({})` 放行，不做任何解密/解析；开启后仅在命中 eapi 播放相关接口时解密，且无改动（非 VIP 歌曲）时也原样放行不重序列化
+- **网易云解锁零开销关闭态**：`netease_vip` 关闭时脚本在参数检查处直接 `$done({})` 放行，不做任何解密/解析；开启后仅在命中 eapi 播放相关接口时解密，且无改动（非 VIP 歌曲）时也原样放行不重序列化
 
 注意：插件内脚本为 GitHub 远程引用，本仓库文件更新后需推送到远程才会在 Loon 生效。
 

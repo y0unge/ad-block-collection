@@ -12,7 +12,7 @@
  *     因此改写后的 JSON 以纯文本返回, 尾部补空格避开 16 对齐即可, 无需重加密
  *
  * 插件参数: [Argument] netease_vip = boolean,...  (是否解锁 VIP 歌曲)
- *   合集插件默认 false(去广告用户按需开启), 独立插件默认 true;
+ *   合集/独立插件均默认 true, 不需要可在插件参数中关闭;
  *   关闭时本脚本直接放行, 不做任何解密/改写。
  *
  * 策略: 解密 → 递归清理试听字段 + patch privilege → 纯 JSON 返回;
@@ -29,7 +29,7 @@
 
   /* ---------- 插件参数 ----------
    * $argument 兼容对象/JSON字符串两种形态; 参数缺失时默认开启
-   * (Loon 会把 [Argument] 定义值传入, 合集插件默认 false 由插件侧控制)。 */
+   * (Loon 会把 [Argument] 定义值传入, 插件侧默认值决定初态)。 */
   function pluginArgs() {
     try {
       if (typeof $argument === 'undefined') return {};
