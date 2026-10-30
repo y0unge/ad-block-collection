@@ -47,6 +47,7 @@ function clip(s, n) {
 
   var body = "";
   try { body = $response.body || ""; } catch (e) {}
+  log("触发 " + (typeof $request !== "undefined" && $request && $request.url ? $request.url : "?") + " len=" + (typeof body === "string" ? body.length : 0));
   if (typeof body !== "string" || !body || !keywords.length) { $done({}); return; }
 
   var decoded = decodeEscapes(body);
