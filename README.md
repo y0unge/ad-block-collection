@@ -84,6 +84,8 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的
 
 基于网易云音乐 **9.6.15 (com.netease.cloudmusic)** 脱壳 IPA 逆向分析（eapi 协议级）+ 真机抓包重放实验，**独立插件**（`NeteaseMusicVIP.plugin`）默认开启，可在插件「参数」中切换（`netease_vip` 布尔开关；关闭时脚本直接放行，不解密、零开销）。该功能不包含在去广告合集（AdBlockAll）中，需要单独安装：
 
+> 2026-10-30 修复：插件参数（`netease_vip` 开关 / `unm_url` 音源）此前因 `[Argument]` 使用 Loon 不解析的旧格式而**一直未生效**（参数页不显示、脚本收不到值，实际恒为默认开启的降级模式）；现已改用 `switch`/`input` 控件格式，Script 行迁移新语法并经 `script()` 对象参数显式传入脚本。
+
 - **eapi 协议**（`NEExtensionEncryptor` / `CloudMusicCoSDK`）：API 路径 `/api/...` → `/eapi/...`；请求体为 `AES-128-ECB`（PKCS7）加密后的大写 hex（`params=<HEX>`），明文为 `path + "-36cd479b6b5-" + json + "-36cd479b6b5-" + hex(md5("nobody"+path+"use"+json+"md5forencrypt"))`；**响应体为 `AES-128-ECB(gzip(JSON))` 双层**（HTTP 层 `Content-Encoding: gzip`）。密钥 `e82ckenh8dichen8` 藏了两层：`__TEXT.__const` 里 UTF-16 交错的 base64 串 → 主密钥 `5f5f666f7e77420f1e2f42576e07223f` AES 解密 → 才得到分隔符与密钥本体
 - **链路修复（本插件请求侧脚本）**：网关带 `vary: Accept-Encoding`，把 eapi 请求头改为 `Accept-Encoding: identity` 后服务器返回**未压缩的纯 AES(JSON)**（实测确认），响应侧因此无需 gzip 依赖；改写后的 JSON 以纯文本返回即可——客户端 `decrypt:type:` 对 `len%16!=0` 的体解密失败会**原样放行**（`0x10175cb38` 处 `tst x2,#0xf`），上层照常 JSON 解析，无需重新加密
 - **2026 服务器现状（真机重放实验证实）**：非 VIP 账号请求付费歌（fee=1），`player/url` 一律返回**服务端切片的 30 秒试听文件**（`jd-musicrep-ts` 路径、size≈30s、time≈30000），`trialMode`/`level`/`extPlay`/`verifyId` 无论怎么改都一样；咪咕替换通道（`NMSongNoCopyrightThirdPartyInfo`）仅用于无版权歌曲跳 H5，与 VIP 无关。**因此纯客户端改写无法变出完整音频**
@@ -115,7 +117,7 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的
 - **响应快速预检**：`JD_remove_ads.js` 解析前对原始响应做单次特征扫描，非专项 fid 且无黑名单 mId / 推荐标题特征时直接放行，跳过 JSON 解析、递归清理与再序列化（此类响应 deepScrub 必然是空操作）
 - **uniformRecommend 提前返回**：命中空包后立即结束（实测该路径 ~2x），不再空转全量解析与递归清理，并修复双 `$done`
 - **闲鱼脚本瘦身**：响应不含任何广告卡片模板特征时直接放行（零解析）；嵌套 JSON 字符串仅在自身含特征时才二次解析；原地修改代替整棵对象树重建
-- **脚本语法迁移（2026-10-30）**：闲鱼/传祺响应侧脚本由旧语法 `http-response` 迁移至 Loon 3.5.1(983)+ 新语法（`response if ${url} ~= ... then script(...)`），与京东脚本同因——实测旧语法在部分环境不触发；闲鱼开屏正因旧语法风险 + 实际 schema 与正则不匹配（realTimeAd 通道）叠加漏网
+- **脚本语法迁移（2026-10-30）**：闲鱼/传祺/网易云脚本由旧语法 `http-request`/`http-response` 迁移至 Loon 3.5.1(983)+ 新语法（`request|response if ${url} ~= ... then script(...)`），与京东脚本同因——实测旧语法在部分环境不触发；闲鱼开屏正因旧语法风险 + 实际 schema 与正则不匹配（realTimeAd 通道）叠加漏网。网易云侧同步修复 `[Argument]` 旧格式不解析导致参数从未传入脚本的问题
 - **MITM 收窄**：京东侧仅保留有 Rewrite/Script 实际命中的域名（`mars`/`policy` 已 REJECT 无需解密，`api`/`routine`/`color`/`waapdg` 无规则引用）；闲鱼 mtop 网关与传祺通配保持不变（收窄会漏广告）；网易云仅 API 域（音频文件 CDN 不解密）
 - **开屏改响应篡改**：闲鱼/传祺开屏走"删除 realTimeAd/成功但无广告"响应篡改而非 reject，避免触发联盟兜底、素材重试与缓存展示（重试风暴本身就是耗电来源）
 - **网易云解锁零开销关闭态**：`netease_vip` 关闭时脚本在参数检查处直接 `$done({})` 放行，不做任何解密/解析；开启后仅在命中 eapi 播放相关接口时解密，且无改动（非 VIP 歌曲）时也原样放行不重序列化

@@ -4,7 +4,8 @@
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 解锁
 #!tag = 网易云音乐,VIP,eapi
-#!date = 2026-10-29
+#!date = 2026-10-30
+#!loon_version = 3.5.1(983)
 
 # ================================================================
 # 网易云音乐 VIP 解锁 Loon 插件
@@ -60,20 +61,24 @@
 #        unm_url      填音源 API 地址(如自建 getunm/UNM 服务)开启换源模式
 #   3. 日志搜 [NM-VIP] 可观测: unlocked=换源成功, trial-cleared=降级处理
 #   4. 与其他网易云音乐插件功能重叠时建议只保留其一
+#   5. Script 已迁移 Loon 3.5.1(983)+ 新语法(旧语法 http-request/http-response
+#      部分环境不触发); [Argument] 已改用 input/switch 控件格式并经 script()
+#      对象参数显式传入(2026-10-30 修复: 旧 string/boolean 简单格式不被解析,
+#      参数页不显示且脚本从未收到参数, 开关/音源配置实际一直未生效)
 # ================================================================
 
 [Argument]
-netease_vip = boolean,true,启用 VIP 歌曲解锁（关闭则不解密不拦截，完全放行零开销）
-unm_url = string,,音源 API 地址（可选，UnblockNeteaseMusic/getunm 兼容服务，如 http://192.168.1.2:8080 ；填写后对试听/付费歌曲按歌名+时长换源替换为完整音频；留空则仅解除试听限制交互）
+netease_vip = switch,true,type=boolean,tag=启用 VIP 解锁,desc=关闭则不解密不拦截，完全放行零开销
+unm_url = input,type=string,tag=音源 API 地址,desc=UnblockNeteaseMusic/getunm 兼容服务，如 http://192.168.1.2:8080 ；填写后对试听/付费歌曲按歌名+时长换源替换为完整音频；留空则仅解除试听限制交互
 
 [Script]
 # 请求侧: eapi 请求改 Accept-Encoding=identity, 让服务器返回不压缩的 AES(JSON)
 # (网关带 vary: Accept-Encoding, 实测 identity 返回无 content-encoding 头的密文;
 #  否则响应内层还有 gzip, 响应侧需 pako 才能处理)
-http-request ^https?:\/\/(?:[^\/]+\.)?music\.163\.com\/eapi\/(?:song\/enhance\/(?:player|download)\/url(?:\/v1)?|song\/enhance\/privilege|v3\/song\/detail|v[36]\/playlist\/detail|playlist\/detail|(?:cloud)?search|v1\/discovery|v3\/discovery|batch|playmode\/intelligence) requires-body=0, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/netease_music_vip_req.js, tag=网易云_VIP请求头修正
+request if ${url} ~= /^https?:\/\/(?:[^\/]+\.)?music\.163\.com\/eapi\/(?:song\/enhance\/(?:player|download)\/url(?:\/v1)?|song\/enhance\/privilege|v3\/song\/detail|v[36]\/playlist\/detail|playlist\/detail|(?:cloud)?search|v1\/discovery|v3\/discovery|batch|playmode\/intelligence)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/netease_music_vip_req.js", {${netease_vip}}) with tag="网易云_VIP请求头修正", requires_body=false
 # 响应侧: 解密 eapi 响应 → 歌名缓存 + privilege/试听修补 → (配置 unm_url 时)换源替换 → 纯 JSON 返回
-# binary-body-mode: eapi 响应为原始二进制密文, 需按字节处理
-http-response ^https?:\/\/(?:[^\/]+\.)?music\.163\.com\/eapi\/(?:song\/enhance\/(?:player|download)\/url(?:\/v1)?|song\/enhance\/privilege|v3\/song\/detail|v[36]\/playlist\/detail|playlist\/detail|(?:cloud)?search|v1\/discovery|v3\/discovery|batch|playmode\/intelligence) requires-body=1, binary-body-mode=true, timeout=30, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/netease_music_vip.js, tag=网易云_VIP解锁
+# binary_body_mode: eapi 响应为原始二进制密文, 需按字节处理
+response if ${url} ~= /^https?:\/\/(?:[^\/]+\.)?music\.163\.com\/eapi\/(?:song\/enhance\/(?:player|download)\/url(?:\/v1)?|song\/enhance\/privilege|v3\/song\/detail|v[36]\/playlist\/detail|playlist\/detail|(?:cloud)?search|v1\/discovery|v3\/discovery|batch|playmode\/intelligence)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/netease_music_vip.js", {${netease_vip}, ${unm_url}}) with tag="网易云_VIP解锁", timeout=30, requires_body=true, binary_body_mode=true
 
 [MITM]
 hostname = music.163.com, *.music.163.com
