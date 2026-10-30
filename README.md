@@ -26,7 +26,8 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的
 
 - **网关迁移适配（2026-10-29 抓包发现）**：闲鱼 mtop 网关已整体迁移至 `acs.m.goofish.com` / `g-acs.m.goofish.com`（92/92 条业务请求，含 `splash.async.ads` 开屏接口），旧 `*.m.taobao.com` 网关域名已不再承载闲鱼流量。脚本 URL 正则匹配任意 host 无需改动，`[MITM]` 列表已加入新网关域名，旧域名保留兼容
 
-- **开屏广告**：`FishSplashAdManager` 经 `mtop.taobao.idlecommerce.splash.{ads,async.ads,config}` 拉取。采用**响应篡改**（`XianyuSplashFix.js`）：递归把响应中每日展示次数类字段（`maxShowCount`/`leftShowCount`/`showTimes*` 等按正则匹配，字段名无关）归零、广告开关置 false、素材列表清空，App 业务层判定"今日无可展示次数"主动跳过开屏——相比 reject 不会触发联盟兜底、素材重试与缓存展示（与京东 `showTimesDaily=0` 同思路）
+- **开屏广告**：`FishSplashAdManager` 经 `mtop.taobao.idlecommerce.splash.{ads,async.ads,config}` 拉取。采用**响应篡改**（`XianyuSplashFix.js`）：**删除响应中的 `data.realTimeAd` 节点**——与服务器"当日无广告"响应形状完全一致（实测无广告响应即无此节点），App 业务层主动跳过开屏，相比 reject 不会触发联盟兜底、素材重试与缓存展示；同时保留频控/开关/素材字段的通用归零兜底（字段名无关正则 + 字符串值 + `mamaAd`/`imageMaterial`/`adMap`/`dspList` 容器）
+  - **跨零点漏网实锤（2026-10-30 抓包定位）**：曾表现为"过了 12 点首启必出一次开屏、随后全天干净"。抓包证实开屏是**服务端实时下发**而非本地缓存——`splash.ads/2.0` 响应携带 `data.realTimeAd.mamaAd.imageMaterial`（品牌广告 `xy_adx_brand`/`fromDsp=opActivity`，`imageUrl` + `showNow:"true"`），**响应中根本不存在 `maxShowCount`/`leftShowCount` 等频控字段**（IPA 里的 ivar 名与线上协议不一致），旧"频控归零"正则全部落空、素材原样到达 App；"每天仅一次"是服务端自身的日频控（同日第二次请求响应中已无 `realTimeAd`）。Loon 日志搜 `[XY-Splash]` 可见 `realTimeAd删除 N 处` 命中统计
 - **信息流广告卡片**（首页/同城）：`fish_home_advertise_card_d3/d4`、`fish_local_advertise_card_d4`、`idlefish_local_feed2_marketing`、`fish_home_feeds_pager_banner`（DinamicX 模板名匹配，脚本从响应中剔除）
 - **详情页推荐广告**：`detail_recommend_ad_card`
 - **直播广告**：`mtop.taobao.idle.live.home.ads.material.get`
@@ -41,7 +42,8 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的
 
 整合自 [aoconch/jd-loon-remove-recommend](https://github.com/aoconch/jd-loon-remove-recommend)，并基于京东 **16.1.80 脱壳 IPA 逆向**与抓包分析大幅增强，覆盖：
 
-- **开屏广告**：`functionId=start` 响应清理（`images`/`showTimesDaily`/`startADImage`，含 POST body 传参通道）
+- **开屏广告**：`functionId=start` 响应清理（`images`/`showTimesDaily`/`startADImage`，含 POST body 传参通道）。2026-10-30 抓包补充：京东新网络栈加密 body 通道（`uuid=...&body=<加密>&appid=mpaas2`，URL 为光秃 `/client.action?`）中 `functionId` 为明文兄弟参数仍可提取，但为防 fid 不可见（body 整体加密）或字段嵌套（`data` 子层）的场景，新增 **fid 无关的开屏字段兜底清理**（`scrubSplashFields`）：凡响应中任意层级出现 `showTimesDaily`/`startADImage`/`start_isshow` 等特征字段即按 start 分支同语义清理（含 `images`/`launchVideos` 清空）；门控用高置信字段名（`showtimesdaily` 等），影院排片类业务同名 `showtimes` 字段不受影响
+- **根路径直传通道（2026-10-30 抓包发现）**：京东部分请求走 `api.m.jd.com/`（光秃根路径，body 传 fid，如 `wsgw_getinfo`/`getTokenC`），原先脚本正则 `\/(client\.action|api)` 对其无效，已改为 `\/(?:client\.action|api)?(?:$|[\/?#])` 覆盖根路径
 - **QUIC 旁路拦截**：京东 Cronet 网络栈可走 QUIC（`quic-api.m.jd.com`，UDP443）完全绕过 MITM，导致开屏偶发漏网；拦截后强制回退 TCP
 - **POST body 通道拦截**：京东新网络栈（JDNetworkBaseAF）将 functionId 序列化进 POST body（URL 为光秃的 `/client.action?`），URL 匹配对其无效；请求侧脚本读取 body 拦截纯广告接口（`queryPagePopWindow`/`babelGetGuideTips`/`secondFloor`/`searchBoxWord`/`uniformRecommend` 等）
 - **API 网关域名全覆盖**（UnitRouter 机制）：`api`/`api-q`/`squnit-api`/`quic-api.m.jd.com`、`api-ai`/`squnit-api-ai.jd.com`
@@ -100,8 +102,9 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的
 - **响应快速预检**：`JD_remove_ads.js` 解析前对原始响应做单次特征扫描，非专项 fid 且无黑名单 mId / 推荐标题特征时直接放行，跳过 JSON 解析、递归清理与再序列化（此类响应 deepScrub 必然是空操作）
 - **uniformRecommend 提前返回**：命中空包后立即结束（实测该路径 ~2x），不再空转全量解析与递归清理，并修复双 `$done`
 - **闲鱼脚本瘦身**：响应不含任何广告卡片模板特征时直接放行（零解析）；嵌套 JSON 字符串仅在自身含特征时才二次解析；原地修改代替整棵对象树重建
+- **脚本语法迁移（2026-10-30）**：闲鱼/传祺响应侧脚本由旧语法 `http-response` 迁移至 Loon 3.5.1(983)+ 新语法（`response if ${url} ~= ... then script(...)`），与京东脚本同因——实测旧语法在部分环境不触发；闲鱼开屏正因旧语法风险 + 实际 schema 与正则不匹配（realTimeAd 通道）叠加漏网
 - **MITM 收窄**：京东侧仅保留有 Rewrite/Script 实际命中的域名（`mars`/`policy` 已 REJECT 无需解密，`api`/`routine`/`color`/`waapdg` 无规则引用）；闲鱼 mtop 网关与传祺通配保持不变（收窄会漏广告）；网易云仅 API 域（音频文件 CDN 不解密）
-- **开屏改响应篡改**：闲鱼/传祺开屏走"频控归零/成功但无广告"响应篡改而非 reject，避免触发联盟兜底、素材重试与缓存展示（重试风暴本身就是耗电来源）
+- **开屏改响应篡改**：闲鱼/传祺开屏走"删除 realTimeAd/成功但无广告"响应篡改而非 reject，避免触发联盟兜底、素材重试与缓存展示（重试风暴本身就是耗电来源）
 - **网易云解锁零开销关闭态**：`netease_vip` 关闭时脚本在参数检查处直接 `$done({})` 放行，不做任何解密/解析；开启后仅在命中 eapi 播放相关接口时解密，且无改动（非 VIP 歌曲）时也原样放行不重序列化
 
 注意：插件内脚本为 GitHub 远程引用，本仓库文件更新后需推送到远程才会在 Loon 生效。

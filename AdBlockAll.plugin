@@ -1,23 +1,27 @@
 #!name = 去广告合集
-#!desc = 闲鱼 + 京东 + 传祺 去广告合一插件。闲鱼：开屏广告、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗、广告上报拦截（基于闲鱼 7.28.80 IPA 逆向）；京东：开屏广告(URL+POST body 双通道)、QUIC 旁路拦截、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、埋点上报域名屏蔽（基于京东 16.1.80 IPA 逆向+抓包）；传祺：开屏广告(广告位数据源+弹窗开关+登录页开屏视频)、悬浮/游戏/PK/签到/推荐广告、运营弹窗、社区/商城/车控 Banner、埋点域名屏蔽（基于传祺 6.2.0 IPA 逆向）。脚本已内置远程地址，安装即用。日志搜 [JD-FID] 可观测京东拦截命中（低耗电）。网易云音乐 VIP 解锁已拆分为独立插件 NeteaseMusicVIP，需要单独安装。
+#!desc = 闲鱼 + 京东 + 传祺 去广告合一插件。闲鱼：开屏广告（2026-10-30 抓包实锤 realTimeAd 下发通道，删除该节点使 App 主动跳过）、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗、广告上报拦截（基于闲鱼 7.28.80 IPA 逆向+抓包）；京东：开屏广告(URL+POST body 双通道，含加密 body/根路径通道的 fid 无关兜底)、QUIC 旁路拦截、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、埋点上报域名屏蔽（基于京东 16.1.80 IPA 逆向+抓包）；传祺：开屏广告(广告位数据源+弹窗开关+登录页开屏视频)、悬浮/游戏/PK/签到/推荐广告、运营弹窗、社区/商城/车控 Banner、埋点域名屏蔽（基于传祺 6.2.0 IPA 逆向）。全部脚本已迁移 Loon 新语法并内置远程地址，安装即用。日志搜 [JD-FID]/[XY-Splash]/[GAC-AD] 可观测拦截命中（低耗电）。网易云音乐 VIP 解锁已拆分为独立插件 NeteaseMusicVIP，需要单独安装。
 #!author = y0unge, aoconch
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
 #!tag = 闲鱼,京东,传祺,去广告
-#!date = 2026-10-29
+#!date = 2026-10-30
 
 # ================================================================
 # 去广告合集 (闲鱼 + 京东 + 传祺) Loon 插件
 #
-# 闲鱼部分: 基于 com.taobao.fleamarket 7.28.80 脱壳 IPA 逆向
+# 闲鱼部分: 基于 com.taobao.fleamarket 7.28.80 脱壳 IPA 逆向 + 跨零点抓包
 #   开屏广告   FishSplashAdManager 经 mtop.taobao.idlecommerce.splash.{ads,async.ads,config}
+#              拉取；实际下发通道为响应 data.realTimeAd.mamaAd.imageMaterial(品牌广告,
+#              服务端实时决策,响应无频控字段)，脚本删除 realTimeAd 节点
+#              (与服务器"当日无广告"响应形状一致,App 主动跳过)
 #   信息流广告 fish_home_advertise_card_d3/d4、fish_local_advertise_card_d4、
 #              idlefish_local_feed2_marketing、fish_home_feeds_pager_banner
 #   详情页广告 detail_recommend_ad_card
 #
 # 京东部分: aoconch/jd-loon-remove-recommend + 本仓库增强(16.1.80 IPA 逆向)
 #   开屏广告   start 响应清理(images/showTimesDaily/startADImage)，
-#              覆盖 POST body 传参通道(请求侧脚本读取 body 拦截)
+#              覆盖 POST body 传参通道(请求侧脚本读取 body 拦截)；
+#              加密 body/根路径通道下 fid 不可见时按字段特征递归兜底清理
 #   QUIC旁路   京东 Cronet 可走 QUIC 绕过 MITM，已拦截强制回退 TCP
 #   推荐楼层   楼层 mId/标题匹配递归清理 (uniformRecommend 等接口)
 #   埋点上报   mars.jd.com 等 18 个上报域名 REJECT
@@ -120,8 +124,8 @@ DOMAIN,cdn.adscloud.huawei.com.cn,REJECT
 [Rewrite]
 # ==================== 闲鱼 ====================
 # --- 开屏广告 (FishSplashAd) ---
-# 已改为响应篡改方案(见 [Script] 闲鱼_开屏频控归零): 频控字段归零让App主动跳过开屏,
-# 不再使用 reject(请求失败会触发联盟兜底/重试/缓存展示)。Fanti/BeiZi域名REJECT保留兜底。
+# 响应篡改方案(见 [Script] 闲鱼_开屏去广告): 删除 realTimeAd 节点让App主动跳过开屏,
+# 不使用 reject(请求失败会触发联盟兜底/重试/缓存展示)。Fanti/BeiZi域名REJECT保留兜底。
 # --- 直播首页广告 ---
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.live\.home\.ads\.material\.get\/ url reject
 # --- 小游戏/互动激励广告 (看广告得奖励类，不需要可删除对应行) ---
@@ -170,25 +174,27 @@ DOMAIN,cdn.adscloud.huawei.com.cn,REJECT
 ^https?:\/\/[a-z0-9\.\-]*gac(?:motor|ne|e)[a-z0-9\.\-]*\.com(?:\.cn)?\/(?:[a-z0-9\-]+\/)*v1\/banner\/selectList url reject-dict
 
 [Script]
-# ==================== 闲鱼: 开屏频控归零 + 信息流/详情页广告卡片过滤 ====================
-http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlecommerce\.splash\.(?:ads|async\.ads|config)\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuSplashFix.js, tag=闲鱼_开屏频控归零
-http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home(?:\.nextfresh)?\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_首页信息流去广告
-http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.home\.nextnearby\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_同城信息流去广告
-http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.(?:item\.detail|detail\.preget|awesome\.detail(?:\.unit)?)\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_详情页去广告
+# ==================== 闲鱼: 开屏 realTimeAd 删除 + 信息流/详情页广告卡片过滤 ====================
+# 开屏: 删除响应中的 realTimeAd 节点(2026-10-30 跨零点抓包实锤的开屏下发通道) + 通用归零兜底
+# 注: 使用 Loon 3.5.1(983)+ 新语法(实测旧语法 http-response 在部分环境不触发,与京东脚本同因)
+response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlecommerce\.splash\.(?:ads|async\.ads|config)\//i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuSplashFix.js") with tag="闲鱼_开屏去广告", timeout=20, requires_body=true
+response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home(?:\.nextfresh)?\//i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js") with tag="闲鱼_首页信息流去广告", timeout=20, requires_body=true
+response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.home\.nextnearby\//i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js") with tag="闲鱼_同城信息流去广告", timeout=20, requires_body=true
+response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.(?:item\.detail|detail\.preget|awesome\.detail(?:\.unit)?)\//i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js") with tag="闲鱼_详情页去广告", timeout=20, requires_body=true
 # ==================== 京东 ====================
 # 请求侧: 读取 POST body 中的 functionId(京东新网络栈将 fid 序列化进 body，URL 匹配对其无效)，
 # 纯广告接口本地返回空 JSON，命中拦截时记录 [JD-FID] 日志(低耗电：不再全量流水/无观测 DNS 查询)
 # 覆盖全部 API 网关域名变体(UnitRouter 机制): api/api-q/squnit-api/quic-api.m.jd.com, api-ai/squnit-api-ai.jd.com
-# 注: 使用 Loon 3.5.1(983)+ 新语法(实测旧语法 http-request 在部分环境不触发)
-request if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(client\.action|api)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/jd_ad_request.js") with tag="京东_广告请求拦截", timeout=20, requires_body=true
+# URL 正则含根路径 / 直传通道(2026-10-30 抓包发现)；注: 新语法(旧语法 http-request 部分环境不触发)
+request if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(?:client\.action|api)?(?:$|[\/?#])/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/jd_ad_request.js") with tag="京东_广告请求拦截", timeout=20, requires_body=true
 # 响应侧: aoconch 原版逻辑(fid 从 URL/body/嵌套 JSON 提取 + 楼层 mId/标题递归清理 + uniformRecommend 空包)
 # + 本仓库增强: startADImage 清理(16.1.80 IPA)、双 $done 修复、[JD-FID] 命中日志、
-# 低耗电优化(无特征响应预检跳过/观测 DNS 查询移除)
-response if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(client\.action|api)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JD_remove_ads.js") with tag="京东_广告响应清理", timeout=20, requires_body=true
+# 开屏字段 fid 无关递归清理(加密 body/根路径通道兜底)、低耗电优化(无特征响应预检跳过/观测 DNS 查询移除)
+response if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(?:client\.action|api)?(?:$|[\/?#])/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JD_remove_ads.js") with tag="京东_广告响应清理", timeout=20, requires_body=true
 # ==================== 传祺: 开屏广告响应篡改 ====================
 # 开屏广告数据源(positionCode=1) + 登录页开屏视频: 返回"成功但无广告",
 # 避免 reject 触发本地缓存/兜底展示 (参考闲鱼教训; Loon 日志搜 [GAC-AD])
-http-response ^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*app-api\/(?:baseinfo\/advertise\/getAdvertiseByPositionCode|login\/getLoginVideoAndCover) requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/TrumpchiSplashFix.js, tag=传祺_开屏响应篡改
+response if ${url} ~= /^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*app-api\/(?:baseinfo\/advertise\/getAdvertiseByPositionCode|login\/getLoginVideoAndCover)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/TrumpchiSplashFix.js") with tag="传祺_开屏响应篡改", timeout=20, requires_body=true
 
 [MITM]
 # 低耗电: 京东侧仅保留有 Rewrite/Script 规则实际命中的域名(mars/policy 已 REJECT，

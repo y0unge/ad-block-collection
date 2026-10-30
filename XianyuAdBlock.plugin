@@ -1,9 +1,9 @@
 #!name = 闲鱼去广告
-#!desc = 去除闲鱼开屏广告、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗，并拦截广告曝光点击上报。基于闲鱼 7.28.80 (com.taobao.fleamarket) IPA 逆向分析；2026-10-29 抓包确认 mtop 网关已迁移至 goofish.com，MITM 已同步覆盖新网关。脚本已内置远程地址，安装即用。
+#!desc = 去除闲鱼开屏广告（2026-10-30 抓包实锤 realTimeAd 下发通道，删除该节点使 App 主动跳过）、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗，并拦截广告曝光点击上报。基于闲鱼 7.28.80 (com.taobao.fleamarket) IPA 逆向 + 跨零点抓包分析；脚本已迁移 Loon 新语法并内置远程地址，安装即用。
 #!author = y0unge
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
-#!date = 2026-10-29
+#!date = 2026-10-30
 
 # ================================================================
 # 闲鱼 (com.taobao.fleamarket) 去广告 Loon 插件
@@ -14,7 +14,10 @@
 #
 # 逆向依据:
 #   开屏广告   FishSplashAdManager 经 mtop.taobao.idlecommerce.splash.{ads,async.ads,config}
-#              拉取，请求失败(onAdGetFail)即不展示开屏
+#              拉取；2026-10-30 跨零点抓包实锤实际下发通道为响应 data.realTimeAd.
+#              mamaAd.imageMaterial(品牌广告,showNow:"true" 服务端实时决策,响应无
+#              频控字段)，脚本删除 realTimeAd 节点(与服务器"当日无广告"响应形状
+#              一致,App 主动跳过,不触发联盟兜底)
 #   信息流广告 DinamicXPreset_homepage 模板: fish_home_advertise_card_d3/d4、
 #              fish_local_advertise_card_d4、idlefish_local_feed2_marketing、
 #              fish_home_feeds_pager_banner
@@ -28,12 +31,13 @@
 # 使用说明:
 #   1. Loon 安装并信任 CA 证书，开启 MITM 总开关
 #   2. 安装本插件即可，脚本经远程地址自动加载
+#   3. 观测: Loon 日志搜索 [XY-Splash](开屏)/[XY-Feed](信息流)
 # ================================================================
 
 [Rewrite]
 # --- 开屏广告 (FishSplashAd) ---
-# 已改为响应篡改方案(见 [Script] 闲鱼_开屏频控归零): 频控字段归零让App主动跳过开屏,
-# 不再使用 reject(请求失败会触发联盟兜底/重试/缓存展示)。Fanti/BeiZi域名REJECT保留兜底。
+# 响应篡改方案(见 [Script] 闲鱼_开屏去广告): 删除 realTimeAd 节点让App主动跳过开屏,
+# 不使用 reject(请求失败会触发联盟兜底/重试/缓存展示)。Fanti/BeiZi域名REJECT保留兜底。
 
 # --- 直播首页广告 ---
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.live\.home\.ads\.material\.get\/ url reject
@@ -55,12 +59,14 @@
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home\.pop\.interest\.upload\/ url reject
 
 [Script]
-# 开屏广告频控归零: 篡改 splash.{ads,async.ads,config} 响应,每日展示次数归零+素材清空,App主动跳过开屏
-http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlecommerce\.splash\.(?:ads|async\.ads|config)\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuSplashFix.js, tag=闲鱼_开屏频控归零
+# 开屏广告: 删除响应中的 realTimeAd 节点(2026-10-30 跨零点抓包实锤的开屏下发通道)
+# + 频控/开关/素材字段通用归零兜底。观测: Loon 日志搜 [XY-Splash]
+# 注: 使用 Loon 3.5.1(983)+ 新语法(实测旧语法 http-response 在部分环境不触发,与京东脚本同因)
+response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlecommerce\.splash\.(?:ads|async\.ads|config)\//i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuSplashFix.js") with tag="闲鱼_开屏去广告", timeout=20, requires_body=true
 # 信息流/详情页广告卡片过滤
-http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home(?:\.nextfresh)?\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_首页信息流去广告
-http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.home\.nextnearby\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_同城信息流去广告
-http-response ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.(?:item\.detail|detail\.preget|awesome\.detail(?:\.unit)?)\/ requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js, tag=闲鱼_详情页去广告
+response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home(?:\.nextfresh)?\//i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js") with tag="闲鱼_首页信息流去广告", timeout=20, requires_body=true
+response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.home\.nextnearby\//i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js") with tag="闲鱼_同城信息流去广告", timeout=20, requires_body=true
+response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.(?:item\.detail|detail\.preget|awesome\.detail(?:\.unit)?)\//i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js") with tag="闲鱼_详情页去广告", timeout=20, requires_body=true
 
 [Rule]
 # 阿里妈妈 Tanx 广告交易 (click.tanx.com / ifs.tanx.com / ef-dongfeng.tanx.com)

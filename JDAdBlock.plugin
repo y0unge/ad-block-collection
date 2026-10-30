@@ -1,10 +1,10 @@
 #!name = 京东去广告
-#!desc = 基于 16.1.80 脱壳 IPA 逆向 + 抓包分析：开屏广告(start/startADImage)、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、纯广告接口(URL+POST body 双通道)、QUIC 旁路拦截、埋点上报域名屏蔽。命中拦截/清理时记录 [JD-FID] 日志（低耗电：无全量流水、无观测 DNS 查询、无特征响应预检跳过）。
+#!desc = 基于 16.1.80 脱壳 IPA 逆向 + 抓包分析：开屏广告(start/startADImage，含加密 body 与根路径通道的 fid 无关兜底清理)、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、纯广告接口(URL+POST body 双通道)、QUIC 旁路拦截、埋点上报域名屏蔽。命中拦截/清理时记录 [JD-FID] 日志（低耗电：无全量流水、无观测 DNS 查询、无特征响应预检跳过）。
 #!author = aoconch, y0unge
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
 #!tag = 京东,去广告,去推荐
-#!date = 2026-10-29
+#!date = 2026-10-30
 
 # ================================================================
 # 京东 (com.360buy.jdmobile) 去广告 Loon 插件
@@ -16,11 +16,15 @@
 #      (URL 为光秃的 /client.action?)，URL 匹配对其无效，
 #      请求侧脚本读取 body 拦截纯广告接口 + 记录 [JD-FID] 日志
 #   3. API 网关域名全覆盖(UnitRouter): api/api-q/squnit-api/quic-api.m.jd.com,
-#      api-ai/squnit-api-ai.jd.com
+#      api-ai/squnit-api-ai.jd.com；2026-10-30 抓包新增根路径通道
+#      (api.m.jd.com/ 直传 body fid，如 wsgw_getinfo)，脚本正则已覆盖
 #   4. startADImage 清理(16.1.80 IPA 逆向发现的开屏广告单图字段)
-#   5. 埋点/统计上报域名 REJECT(抓包 717 条请求中约 340 条)
-#   6. Script 使用 Loon 3.5.1(983)+ 新语法(旧语法 http-request 部分环境不触发)
-#   7. 低耗电优化: 移除每请求 jddebug.com 观测 DNS 查询、[JD-FID] 仅命中时记录、
+#   5. 开屏字段 fid 无关兜底(2026-10-30): 加密 body 通道(uuid=...&body=<加密>
+#      &appid=mpaas2)下 fid 可能不可见，start 分支不触发；scrubSplashFields
+#      按 showTimesDaily/startADImage 等字段特征递归清理(含嵌套层)，与 fid 无关
+#   6. 埋点/统计上报域名 REJECT(抓包 717 条请求中约 340 条)
+#   7. Script 使用 Loon 3.5.1(983)+ 新语法(旧语法 http-request 部分环境不触发)
+#   8. 低耗电优化: 移除每请求 jddebug.com 观测 DNS 查询、[JD-FID] 仅命中时记录、
 #      无特征响应预检跳过、uniformRecommend 提前返回、MITM 收窄至有规则命中的域名
 # 使用说明:
 #   1. Loon 安装并信任 CA 证书，开启 MITM 总开关
@@ -67,12 +71,14 @@ DOMAIN,imgcps.jd.com,REJECT
 ^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=secondFloor - reject
 
 [Script]
-# 请求侧: 读取 POST body 中的 functionId，纯广告接口本地返回空 JSON，
-# 命中拦截时记录 [JD-FID] 日志(低耗电：不再全量流水/无观测 DNS 查询)
-request if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(client\.action|api)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/jd_ad_request.js") with tag="京东_广告请求拦截", timeout=20, requires_body=true
+# 请求侧: 读取 POST body 中的 functionId(京东新网络栈将 fid 序列化进 body，
+# 含加密 body 通道——fid 为明文兄弟参数；URL 匹配对其无效)，
+# 纯广告接口本地返回空 JSON，命中拦截时记录 [JD-FID] 日志
+# URL 正则覆盖: /client.action、/api、根路径 / 直传通道(2026-10-30 抓包发现)
+request if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(?:client\.action|api)?(?:$|[\/?#])/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/jd_ad_request.js") with tag="京东_广告请求拦截", timeout=20, requires_body=true
 # 响应侧: aoconch 原版逻辑 + 本仓库增强(startADImage 清理、双 $done 修复、[JD-FID] 命中日志、
-# 无特征响应预检跳过/观测 DNS 查询移除的低耗电优化)
-response if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(client\.action|api)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JD_remove_ads.js") with tag="京东_广告响应清理", timeout=20, requires_body=true
+# 开屏字段 fid 无关递归清理(加密 body/根路径通道兜底)、无特征响应预检跳过的低耗电优化)
+response if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(?:client\.action|api)?(?:$|[\/?#])/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JD_remove_ads.js") with tag="京东_广告响应清理", timeout=20, requires_body=true
 
 [MITM]
 # 低耗电: 仅保留有 Rewrite/Script 规则实际命中的域名 —— mars/policy 已 REJECT(规则先于

@@ -4,7 +4,7 @@
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
 #!tag = 广汽传祺,去广告,开屏
-#!date = 2026-10-29
+#!date = 2026-10-30
 
 # ================================================================
 # 广汽传祺 (com.cloudyoung.TrumpchiCarSalesDev 6.2.0) 去广告 Loon 插件
@@ -106,9 +106,9 @@ DOMAIN,cdn.adscloud.huawei.com.cn,REJECT
 ^https?:\/\/[a-z0-9\.\-]*gac(?:motor|ne|e)[a-z0-9\.\-]*\.com(?:\.cn)?\/(?:[a-z0-9\-]+\/)*v1\/banner\/selectList url reject-dict
 
 [Script]
-# 开屏广告数据源 + 登录页开屏视频: 响应篡改返回"成功但无广告"
-# (http-response 脚本, 见 TrumpchiSplashFix.js; Loon 日志搜 [GAC-AD])
-http-response ^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*app-api\/(?:baseinfo\/advertise\/getAdvertiseByPositionCode|login\/getLoginVideoAndCover) requires-body=1, script-path=https://raw.githubusercontent.com/y0unge/ad-block-collection/main/TrumpchiSplashFix.js, tag=传祺_开屏响应篡改
+# 开屏广告数据源 + 登录页开屏视频: 响应篡改返回"成功但无广告" (见 TrumpchiSplashFix.js)
+# Loon 日志搜 [GAC-AD]；新语法(旧语法 http-response 在部分环境不触发,与京东/闲鱼脚本同因)
+response if ${url} ~= /^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*app-api\/(?:baseinfo\/advertise\/getAdvertiseByPositionCode|login\/getLoginVideoAndCover)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/TrumpchiSplashFix.js") with tag="传祺_开屏响应篡改", timeout=20, requires_body=true
 
 [MITM]
 hostname = *.gacmotor.com, *.gacne.com.cn, *.gace.com.cn

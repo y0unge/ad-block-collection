@@ -12,6 +12,14 @@
 //   4. uniformRecommend 命中后立即返回，不再空转全量 scrub（并修复双 $done）
 //   注：isRecFloor 保留原生 JSON.stringify 判定（实测快于 JS 层遍历），收益集中在
 //       预检跳过与观测开销移除上
+//
+// 开屏 fid 无关兜底（2026-10-30）:
+//   抓包发现京东新网络栈的加密 body 通道（uuid=...&body=<加密>&appid=mpaas2，URL 为
+//   光秃 /client.action? 或根路径 /）中 functionId 为明文兄弟参数，但部分请求 body
+//   整体加密时 pickFunctionId 可能拿不到 fid，start 分支不触发；另存在根路径
+//   api.m.jd.com/ 直传 body fid 的通道。因此开屏字段清理不依赖 fid：只要响应中
+//   出现 showTimesDaily/startADImage/start_isshow 等特征字段（无论嵌套在哪一层），
+//   scrubSplashFields 即按与 start 分支相同语义清理（含 images/launchVideos 清空）。
 
 (function () {
   const DEBUG = false; // true: 输出全部 functionId 流水用于排查（平时保持 false 省电）
@@ -89,11 +97,13 @@
     "feedRecommend",
   ]);
 
-  // 预检信号 = deepScrub 可能产生修改的全部必要特征（黑名单 mId 字面量 + mId
-  // 正则 token + 推荐标题）。原始文本不含任一信号时清理必然是空操作，直接放行。
-  // 注：容器 key（floors/floorList 等）无需列入——容器存在而无楼层命中时本就是空操作。
+  // 预检信号 = deepScrub/scrubSplashFields 可能产生修改的全部必要特征（黑名单 mId
+  // 字面量 + mId 正则 token + 推荐标题 + 开屏特征字段）。原始文本不含任一信号时
+  // 清理必然是空操作，直接放行。注：容器 key（floors/floorList 等）无需列入——
+  // 容器存在而无楼层命中时本就是空操作；showtimes 单词不列入（影院排片等业务
+  // 同名，用 showtimesdaily/start_isshow 等高置信 token 避免误判）。
   const SCRUB_SIGNAL_RE =
-    /recommend|jdur|guess|rank|look|fashion|feed|maylike|goodstuff|cartrec|banner|buyoften|bigsale|attention|newsfloor|noticefloor|plusfloor|bpdynamic|为你推荐|潮流好货|推荐榜单|快点来看看|你可能还喜欢|猜你喜欢|AI推荐|好物推荐|热门推荐|精选推荐|看了又看|相似好物/i;
+    /recommend|jdur|guess|rank|look|fashion|feed|maylike|goodstuff|cartrec|banner|buyoften|bigsale|attention|newsfloor|noticefloor|plusfloor|bpdynamic|showtimesdaily|startadimage|start_isshow|startisshow|showcondition|verctr|saoasao|ver14close|launchvideos|为你推荐|潮流好货|推荐榜单|快点来看看|你可能还喜欢|猜你喜欢|AI推荐|好物推荐|热门推荐|精选推荐|看了又看|相似好物/i;
 
   // 专项 fid：分支内的处理不依赖特征预检（start 清字段、cart 清列表等），必须解析
   const SPECIAL_FID_RE = /^(deliverLayer|orderTrackBusiness|getTabHomeInfo|myOrderInfo|personinfoBusiness|start|welcomeHome)$/i;
@@ -362,8 +372,76 @@
     if (obj.result) dirty += emptyRecommend(obj.result);
   }
 
+  // 开屏特征字段（与 start 分支/ZERO_KEYS 同源，16.1.80 IPA strings）
+  // 高置信门控 key：节点含其一才按开屏节点处理（避免误伤普通业务字段）
+  const SPLASH_GATE_RE = /^(showTimesDaily|startADImage|start_isshow|startIsshow|showcondition|verCtrSwitch|verCtrAllSwitch|saoasaoSwitch|ver14CloseSwitch|launchVideos|LaunchVideos)$/;
+  // 门控命中后需归零的 key（含无 "Daily" 后缀的变体）
+  const SPLASH_ZERO_RE = /^(showTimesDaily|showtimes|showTimes|start_isshow|startIsshow|showcondition|verCtrSwitch|verCtrAllSwitch|saoasaoSwitch)$/;
+
+  // fid 无关的开屏字段清理：递归遍历（含嵌套 JSON 字符串），凡节点命中门控 key
+  // 即按 start 分支同语义处理（频控/开关归零、startADImage 删除、launchVideos 清空、
+  // 兄弟 images 数组清空、ver14CloseSwitch=1）。fid 不可见（加密 body/根路径通道）
+  // 或字段嵌套在 data 等子层时由此兜底。
+  function scrubSplashFields(node) {
+    if (!node || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      node.forEach(scrubSplashFields);
+      return;
+    }
+    for (const k of Object.keys(node)) {
+      const v = node[k];
+      if (typeof v === "string" && v.length > 1 && (v.charAt(0) === "{" || v.charAt(0) === "[")) {
+        try {
+          const parsed = JSON.parse(v);
+          if (parsed !== null && typeof parsed === "object") {
+            const before = JSON.stringify(parsed);
+            scrubSplashFields(parsed);
+            const after = JSON.stringify(parsed);
+            if (after !== before) node[k] = after;
+          }
+        } catch (e) {}
+      } else {
+        scrubSplashFields(v);
+      }
+    }
+    const keys = Object.keys(node);
+    if (!keys.some((k) => SPLASH_GATE_RE.test(k))) return;
+    for (const k of keys) {
+      if (SPLASH_ZERO_RE.test(k)) {
+        if (node[k] !== 0) {
+          node[k] = 0;
+          dirty++;
+        }
+      } else if (k === "startADImage") {
+        delete node[k];
+        dirty++;
+      } else if (k === "ver14CloseSwitch") {
+        if (node[k] !== 1) {
+          node[k] = 1;
+          dirty++;
+        }
+      } else if (k === "launchVideos" || k === "LaunchVideos") {
+        if (Array.isArray(node[k]) && node[k].length) {
+          node[k] = [];
+          dirty++;
+        }
+      }
+    }
+    if (Array.isArray(node.images) && node.images.length) {
+      node.images = [];
+      dirty++;
+    }
+    if (node.startADImage) {
+      delete node.startADImage;
+      dirty++;
+    }
+  }
+
   // 全局：按标题/mId 递归清
   deepScrub(obj, 0);
+
+  // 全局：开屏特征字段 fid 无关清理（加密 body/根路径通道下 fid 不可见的兜底）
+  scrubSplashFields(obj);
 
   if (dirty > 0) {
     logHit("cleaned hits=" + dirty);
