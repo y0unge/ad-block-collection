@@ -1,6 +1,6 @@
 ﻿# 去广告合集
 
-Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的去广告插件；网易云音乐 VIP 解锁为独立插件。
+Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的去广告插件；网易云音乐 VIP 解锁、支付宝商品关键词监控为独立插件。
 
 ## 插件一览
 
@@ -11,6 +11,7 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的
 | **京东去广告** (JDAdBlock) | 仅京东 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JDAdBlock.plugin` |
 | **传祺去广告** (TrumpchiAdBlock) | 仅广汽传祺 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/TrumpchiAdBlock.plugin` |
 | **网易云音乐 VIP 解锁** (NeteaseMusicVIP) | 仅网易云（独立安装，默认开启，参数中可关闭） | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/NeteaseMusicVIP.plugin` |
+| **支付宝商品关键词监控** (AlipayGoodsMonitor) | 仅支付宝「新惊喜市场」商品流（独立安装，参数中可配置关键词） | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/AlipayGoodsMonitor.plugin` |
 
 脚本（`XianyuAdBlock.js` / `JD_remove_ads.js` / `netease_music_vip.js` 等）已通过插件内远程地址引用，无需手动安装。
 
@@ -93,6 +94,17 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的
 - **安全性**：任何环节失败（参数关闭 / 非 eapi 密文 / 解密乱码 / JSON 解析失败 / 无改动）一律 `$done({})` 原样放行，绝不破坏正常响应；命中时 Loon 日志输出 `[NM-VIP] unlocked ...`（换源成功）或 `[NM-VIP] trial-cleared ...`（降级）
 
 > 换源模式需要自建或使用公共 UnblockNeteaseMusic/getunm 音源服务（如 `docker` 自建后填 `http://<ip>:<port>` 到插件参数 `unm_url`）。仅供逆向学习与协议研究演示，请支持正版，付费收听你喜欢的音乐。
+
+## 支付宝商品关键词监控
+
+**独立插件**（`AlipayGoodsMonitor.plugin`），不包含在去广告合集（AdBlockAll）中，需要单独安装。基于支付宝内「新惊喜市场」小程序（appId `2060090000376314`，XRiver 容器）抓包分析：商品流 RPC `com.alipay.ppgshopping.biz.rpc.rebate.feeds`（`bizScene=newSurpriseMarket`）经 `mobilegw.alipay.com/mgw.htm` 网关返回，当商品名称包含指定关键词时推送系统通知，点击通知可跳回小程序。
+
+- **可配置参数**（插件「参数」页）：`keywords` 监控关键词（默认 `黑客700、速比特、开普勒`，逗号/顿号分隔）、`dedupeHours` 同一商品去重时长（默认 24 小时，`0` = 每次都推送）、`openLink` 点击通知的跳转链接（默认跳回该小程序，留空不跳转）
+- **双层转义解析**：mgw 响应为 JSON 套 JSON（`result` 字段为转义字符串），脚本递归解析后按"最短命中字符串"提取商品名，兼容 `\u` 转义响应；去重记录存 Loon 持久化存储（上限 300 条自动淘汰）
+- **被动监控**：仅在小程序内浏览、商品流请求经过 Loon 时检测，非后台自动巡检；需给 Loon 开启系统通知权限
+- **有意不匹配 mtop 网关**：Loon 同一响应只执行第一条命中的 Response Script，闲鱼插件的 mtop 正则不限 host，宽网关正则会与其互相抢占；若实测发现商品流走其他网关，用 Loon 抓包确认后替换插件内正则与 `[MITM]` 域名（数据走长连接时无法捕获）
+- `mobilegw.alipay.com` 为支付宝通用 RPC 网关，若支付宝出现页面/支付异常，先关闭本插件
+- 观测：Loon 日志搜 `[商品监控]`（需 Loon 3.5.1(983)+ 新语法）
 
 ## 低耗电优化
 

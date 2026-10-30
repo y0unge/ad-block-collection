@@ -1,0 +1,48 @@
+#!name = 支付宝商品关键词监控
+#!desc = 监控支付宝内「新惊喜市场」小程序（appId 2060090000376314）的商品流，商品名称包含指定关键词（默认：黑客700、速比特、开普勒）时推送系统通知，点击通知可跳回小程序。商品流 RPC com.alipay.ppgshopping.biz.rpc.rebate.feeds 走 mobilegw.alipay.com/mgw.htm 网关（mgw 响应为 JSON 套 JSON 双层转义，脚本递归解析后提取商品名，兼容 \u 转义）；关键词、去重时长、跳转链接均可在插件「参数」中配置。独立插件，不包含在去广告合集（AdBlockAll）中。
+#!author = y0unge
+#!homepage = https://github.com/y0unge/ad-block-collection
+#!category = 通知
+#!tag = 支付宝,商品监控,关键词通知
+#!date = 2026-10-30
+
+# ================================================================
+# 支付宝「新惊喜市场」商品关键词监控 Loon 插件
+#
+# 抓包依据 (HAR 168_1793317765128, AlipayClient 10.8.30.6000):
+#   · 小程序: 支付宝内「新惊喜市场」(render.alipay.com/p/yuyan/
+#     180020010001283142, appId 2060090000376314), XRiver/Nebula 容器
+#   · 商品流: RPC com.alipay.ppgshopping.biz.rpc.rebate.feeds
+#     (bizScene=newSurpriseMarket, pageSize=16) + 广告位 pageplacement.query
+#   · 网关: com.alipay.* operationType 走 mobilegw.alipay.com/mgw.htm
+#     (HAR 中仅捕获到广告图/manifest, 商品数据响应体未在 HAR 中出现,
+#      网关按 Alipay RPC 协议推断; mtop 网关 guide-acs.m.taobao.com 在
+#      该小程序仅见 gettimestamp)
+#   · 有意不匹配 mtop 网关: Loon 同一响应只执行第一条命中的 Response
+#     Script, 闲鱼插件的 mtop 正则不限 host, 宽网关正则会与其互相抢占
+#
+# 使用说明:
+#   1. Loon 安装并信任 CA 证书，开启 MITM 总开关
+#   2. 安装本插件, 在插件「参数」中配置:
+#        keywords     监控关键词, 逗号/顿号分隔 (默认: 黑客700、速比特、开普勒)
+#        dedupeHours  同一商品去重时长(小时), 0=每次都推送 (默认 24)
+#        openLink     点击通知打开的链接 (默认跳回该小程序, 留空不跳转)
+#   3. 被动监控: 在小程序内浏览商品流、请求经过 Loon 时才检测,
+#      非后台自动巡检; 需给 Loon 开启系统通知权限
+#   4. 若浏览时不弹通知: 用 Loon 抓包确认商品流实际网关域名,
+#      替换下方正则与 [MITM] 域名 (若数据走长连接则无法捕获)
+#   5. mobilegw 为支付宝通用 RPC 网关, 若支付宝出现页面/支付异常, 先关闭本插件
+#   6. 观测: Loon 日志搜 [商品监控]
+#   7. 需 Loon 3.5.1(983)+ (新语法; 旧语法 http-response 部分环境不触发)
+# ================================================================
+
+[Argument]
+keywords = string,黑客700、速比特、开普勒,监控关键词：商品名称包含任一关键词时推送通知，多个关键词用逗号或顿号分隔
+dedupeHours = number,24,同一商品去重时长（小时）：该时间内不重复推送，填 0 表示每次都推送
+openLink = string,alipays://platformapi/startapp?appId=2060090000376314,点击通知打开的链接：默认跳回「新惊喜市场」小程序，留空则不跳转
+
+[Script]
+response if ${url} ~= /^https?:\/\/mobilegw\.alipay\.com\/mgw\.htm/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/alipay_goods_monitor.js", {${keywords}, ${dedupeHours}, ${openLink}}) with tag="支付宝_商品关键词监控", timeout=20, requires_body=true
+
+[MITM]
+hostname = mobilegw.alipay.com
