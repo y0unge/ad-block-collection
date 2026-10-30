@@ -28,12 +28,15 @@
 #        keywords     监控关键词, 逗号/顿号分隔 (默认: 黑客700,速比特,开普勒)
 #        dedupeHours  同一商品去重时长(小时), 0=每次都推送 (默认 24)
 #        openLink     点击通知打开的链接 (默认跳回该小程序, 留空不跳转)
+#        notifyMode   通知模式: always=每次命中 mobilegw 响应都通知
+#                     (subtitle=RPC operationType, body=状态+len, 心跳可见),
+#                     hit=仅命中关键词时通知
 #   3. 被动监控: 在小程序内浏览商品流、请求经过 Loon 时才检测,
 #      非后台自动巡检; 需给 Loon 开启系统通知权限
-#   4. 排查: Loon 日志搜 [商品监控] —— 每次命中 mobilegw 响应都会
-#      输出触发日志(URL+body长度); 有触发日志但无通知=响应内容未命中
-#      关键词, 完全无日志=商品流未走 mobilegw(抓包确认实际网关后替换
-#      下方正则与 [MITM] 域名, 数据走长连接则无法捕获)
+#   4. 排查(always 默认): 完全收不到「支付宝商品监控」通知=商品流未走
+#      mobilegw(抓包确认实际网关后替换正则与 [MITM] 域名, 走长连接则
+#      无法捕获); 收到通知但「无命中」=脚本正常、响应内容未含关键词;
+#      确认存活后可把 notifyMode 切为 hit 减少打扰; 日志搜 [商品监控]
 #   5. mobilegw 为支付宝通用 RPC 网关, 若支付宝出现页面/支付异常, 先关闭本插件
 #   6. 有意不匹配 mtop 网关: 与闲鱼插件 Response Script 抢占(Loon 同一
 #      响应只执行第一条命中脚本)
@@ -44,9 +47,10 @@
 keywords = input,"黑客700,速比特,开普勒",type=string,tag=监控关键词,desc=商品名称包含任一关键词时推送通知，多个关键词用逗号分隔
 dedupeHours = input,24,type=number,tag=去重时长（小时）,desc=同一商品在此时长内不重复推送，填 0 表示每次都推送
 openLink = input,"alipays://platformapi/startapp?appId=2060090000376314",type=string,tag=通知跳转链接,desc=点击通知打开的链接，留空则不跳转
+notifyMode = select,"always","hit",type=string,tag=通知模式,desc=always=每次命中mobilegw响应都通知（心跳可见，用于确认监控存活；支付宝RPC频繁时会刷屏），hit=仅命中关键词时通知
 
 [Script]
-response if ${url} ~= /^https?:\/\/mobilegw\.alipay\.com\/mgw\.htm/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/alipay_goods_monitor.js", {${keywords}, ${dedupeHours}, ${openLink}}) with tag="支付宝_商品关键词监控", timeout=20, requires_body=true
+response if ${url} ~= /^https?:\/\/mobilegw\.alipay\.com\/mgw\.htm/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/alipay_goods_monitor.js", {${keywords}, ${dedupeHours}, ${openLink}, ${notifyMode}}) with tag="支付宝_商品关键词监控", timeout=20, requires_body=true
 
 [MITM]
 hostname = mobilegw.alipay.com

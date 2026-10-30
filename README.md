@@ -101,10 +101,10 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的
 
 **独立插件**（`AlipayGoodsMonitor.plugin`），不包含在去广告合集（AdBlockAll）中，需要单独安装。基于支付宝内「新惊喜市场」小程序（appId `2060090000376314`，XRiver 容器）抓包分析：商品流 RPC `com.alipay.ppgshopping.biz.rpc.rebate.feeds`（`bizScene=newSurpriseMarket`）经 `mobilegw.alipay.com/mgw.htm` 网关返回，当商品名称包含指定关键词时推送系统通知，点击通知可跳回小程序。
 
-- **可配置参数**（Loon 插件详情「参数」页）：`keywords` 监控关键词（默认 `黑客700,速比特,开普勒`，逗号/顿号分隔）、`dedupeHours` 同一商品去重时长（默认 24 小时，`0` = 每次都推送）、`openLink` 点击通知的跳转链接（默认跳回该小程序，留空不跳转）
+- **可配置参数**（Loon 插件详情「参数」页）：`keywords` 监控关键词（默认 `黑客700,速比特,开普勒`，逗号/顿号分隔）、`dedupeHours` 同一商品去重时长（默认 24 小时，`0` = 每次都推送）、`openLink` 点击通知的跳转链接（默认跳回该小程序，留空不跳转）、`notifyMode` 通知模式（`always` 默认 = 每次命中 mobilegw 响应都推送心跳通知，subtitle 为 RPC 的 operationType、正文为状态+长度，京东去推荐脚本同款；`hit` = 仅命中关键词时通知）
 - **双层转义解析**：mgw 响应为 JSON 套 JSON（`result` 字段为转义字符串），脚本递归解析后按"最短命中字符串"提取商品名，兼容 `\u` 转义响应；去重记录存 Loon 持久化存储（上限 300 条自动淘汰）
 - **被动监控**：仅在小程序内浏览、商品流请求经过 Loon 时检测，非后台自动巡检；需给 Loon 开启系统通知权限
-- **排查**：Loon 日志搜 `[商品监控]`——每次命中 mobilegw 响应都输出触发日志（URL + body 长度）；有触发日志但无通知 = 响应内容未命中关键词；完全无日志 = 商品流未走 `mobilegw.alipay.com`（用 Loon 抓包确认实际网关后替换插件内正则与 `[MITM]` 域名，数据走长连接时无法捕获）
+- **排查**（`notifyMode=always` 时心跳通知即观测手段）：完全收不到「支付宝商品监控」通知 = 商品流未走 `mobilegw.alipay.com`（用 Loon 抓包确认实际网关后替换插件内正则与 `[MITM]` 域名，数据走长连接时无法捕获）；收到通知但显示「无命中」= 脚本正常、响应内容未含关键词；确认存活后可切 `hit` 减少打扰；Loon 日志搜 `[商品监控]` 亦可见每次触发的 operationType 与长度
 - **有意不匹配 mtop 网关**：Loon 同一响应只执行第一条命中的 Response Script，闲鱼插件的 mtop 正则不限 host，宽网关正则会与其互相抢占；若实测发现商品流走其他网关，用 Loon 抓包确认后替换插件内正则与 `[MITM]` 域名（数据走长连接时无法捕获）
 - `mobilegw.alipay.com` 为支付宝通用 RPC 网关，若支付宝出现页面/支付异常，先关闭本插件
 - 观测：Loon 日志搜 `[商品监控]`（需 Loon 3.5.1(983)+ 新语法）
