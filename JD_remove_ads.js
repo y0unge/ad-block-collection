@@ -104,6 +104,12 @@
   // 同名，用 showtimesdaily/start_isshow 等高置信 token 避免误判）。
   const SCRUB_SIGNAL_RE =
     /recommend|jdur|guess|rank|look|fashion|feed|maylike|goodstuff|cartrec|banner|buyoften|bigsale|attention|newsfloor|noticefloor|plusfloor|bpdynamic|showtimesdaily|startadimage|start_isshow|startisshow|showcondition|verctr|saoasao|ver14close|launchvideos|为你推荐|潮流好货|推荐榜单|快点来看看|你可能还喜欢|猜你喜欢|AI推荐|好物推荐|热门推荐|精选推荐|看了又看|相似好物/i;
+  // 开屏专用信号(高置信 token): 响应含任一 token 时无论是否清理命中都输出
+  // [JD-FID] splash-signal 观测行——漏网排查时区分三种情况:
+  //   a) "splash-signal cleaned hits=N"  脚本生效且清理命中(仍漏网则另有原因)
+  //   b) "splash-signal seen but 0 cleaned"  脚本生效但字段名不匹配(需要 HAR)
+  //   c) 无此行仍漏网  脚本未生效(远程脚本缓存未刷新,需重启 Loon)或 schema 完全不同
+  const SPLASH_SIGNAL_TEXT_RE = /showtimesdaily|startadimage|start_isshow|startisshow|showcondition|verctr|saoasao|ver14close|launchvideos/i;
 
   // 专项 fid：分支内的处理不依赖特征预检（start 清字段、cart 清列表等），必须解析
   const SPECIAL_FID_RE = /^(deliverLayer|orderTrackBusiness|getTabHomeInfo|myOrderInfo|personinfoBusiness|start|welcomeHome)$/i;
@@ -443,7 +449,9 @@
   // 全局：开屏特征字段 fid 无关清理（加密 body/根路径通道下 fid 不可见的兜底）
   scrubSplashFields(obj);
 
-  if (dirty > 0) {
+  if (SPLASH_SIGNAL_TEXT_RE.test(rawStr)) {
+    logHit(dirty > 0 ? "splash-signal cleaned hits=" + dirty : "splash-signal seen but 0 cleaned (schema mismatch?)");
+  } else if (dirty > 0) {
     logHit("cleaned hits=" + dirty);
   }
   $done({ body: JSON.stringify(obj) });
