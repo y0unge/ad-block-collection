@@ -20,6 +20,15 @@
 //   api.m.jd.com/ 直传 body fid 的通道。因此开屏字段清理不依赖 fid：只要响应中
 //   出现 showTimesDaily/startADImage/start_isshow 等特征字段（无论嵌套在哪一层），
 //   scrubSplashFields 即按与 start 分支相同语义清理（含 images/launchVideos 清空）。
+//
+// 开屏架构实锤（2026-11-02 IPA 二次挖掘 + 漏网 HAR 172 分析）:
+//   京东开屏不走"启动时请求-展示"——配置由后台会话预拉取后写入 JDMPLaunchCacheDataIO
+//   本地缓存（长生命周期），前台启动纯本地决策展示（launchAdShowTimes 本地日计数，
+//   "每日首启一次"由此而来）；素材经 Image_JDAppHome sche 预取（referer
+//   download_Image_JDAppHome，s1125x2436 全屏图）。模型字段除经典 showTimesDaily/
+//   images/startADImage 外还有天幕(TN)体系: TNStart/tnNode/tnUrl/tnId/tnMd5 与
+//   startCardImage/toShow/isNewCarousel——均已纳入清理清单。存量本地缓存需清一次
+//   （京东内清理缓存或卸载重装），此后新写入的配置均被本脚本清空。
 
 (function () {
   const DEBUG = false; // true: 输出全部 functionId 流水用于排查（平时保持 false 省电）
@@ -103,13 +112,13 @@
   // 容器存在而无楼层命中时本就是空操作；showtimes 单词不列入（影院排片等业务
   // 同名，用 showtimesdaily/start_isshow 等高置信 token 避免误判）。
   const SCRUB_SIGNAL_RE =
-    /recommend|jdur|guess|rank|look|fashion|feed|maylike|goodstuff|cartrec|banner|buyoften|bigsale|attention|newsfloor|noticefloor|plusfloor|bpdynamic|showtimesdaily|startadimage|start_isshow|startisshow|showcondition|verctr|saoasao|ver14close|launchvideos|为你推荐|潮流好货|推荐榜单|快点来看看|你可能还喜欢|猜你喜欢|AI推荐|好物推荐|热门推荐|精选推荐|看了又看|相似好物/i;
+    /recommend|jdur|guess|rank|look|fashion|feed|maylike|goodstuff|cartrec|banner|buyoften|bigsale|attention|newsfloor|noticefloor|plusfloor|bpdynamic|showtimesdaily|startadimage|start_isshow|startisshow|showcondition|verctr|saoasao|ver14close|launchvideos|tnstart|startcardimage|tnnode|为你推荐|潮流好货|推荐榜单|快点来看看|你可能还喜欢|猜你喜欢|AI推荐|好物推荐|热门推荐|精选推荐|看了又看|相似好物/i;
   // 开屏专用信号(高置信 token): 响应含任一 token 时无论是否清理命中都输出
   // [JD-FID] splash-signal 观测行——漏网排查时区分三种情况:
   //   a) "splash-signal cleaned hits=N"  脚本生效且清理命中(仍漏网则另有原因)
   //   b) "splash-signal seen but 0 cleaned"  脚本生效但字段名不匹配(需要 HAR)
   //   c) 无此行仍漏网  脚本未生效(远程脚本缓存未刷新,需重启 Loon)或 schema 完全不同
-  const SPLASH_SIGNAL_TEXT_RE = /showtimesdaily|startadimage|start_isshow|startisshow|showcondition|verctr|saoasao|ver14close|launchvideos/i;
+  const SPLASH_SIGNAL_TEXT_RE = /showtimesdaily|startadimage|start_isshow|startisshow|showcondition|verctr|saoasao|ver14close|launchvideos|tnstart|startcardimage|tnnode/i;
 
   // 专项 fid：分支内的处理不依赖特征预检（start 清字段、cart 清列表等），必须解析
   const SPECIAL_FID_RE = /^(deliverLayer|orderTrackBusiness|getTabHomeInfo|myOrderInfo|personinfoBusiness|start|welcomeHome)$/i;
@@ -380,12 +389,18 @@
 
   // 开屏特征字段（与 start 分支/ZERO_KEYS 同源，16.1.80 IPA strings）
   // 高置信门控 key：节点含其一才按开屏节点处理（避免误伤普通业务字段）
-  const SPLASH_GATE_RE = /^(showTimesDaily|startADImage|start_isshow|startIsshow|showcondition|verCtrSwitch|verCtrAllSwitch|saoasaoSwitch|ver14CloseSwitch|launchVideos|LaunchVideos)$/;
-  // 门控命中后需归零的 key（含无 "Daily" 后缀的变体）
-  const SPLASH_ZERO_RE = /^(showTimesDaily|showtimes|showTimes|start_isshow|startIsshow|showcondition|verCtrSwitch|verCtrAllSwitch|saoasaoSwitch)$/;
+  // 2026-11-02 IPA 二次挖掘补充: 京东开屏实际走 JDMPLaunchCacheDataIO 本地缓存
+  // + 后台预拉取(前台启动纯本地决策), 模型含天幕(TN)体系字段 TNStart/tnNode/tnUrl/
+  // tnId/tnMd5 与 startCardImage/toShow/isNewCarousel(素材尺寸 s1125x2436, 素材预取
+  // sche=Image_JDAppHome), 均为旧清理清单的漏网通道
+  const SPLASH_GATE_RE = /^(showTimesDaily|startADImage|start_isshow|startIsshow|showcondition|verCtrSwitch|verCtrAllSwitch|saoasaoSwitch|ver14CloseSwitch|launchVideos|LaunchVideos|TNStart|startCardImage|tnNode)$/;
+  // 门控命中后需归零的 key（含无 "Daily" 后缀的变体 + TN 轮播开关）
+  const SPLASH_ZERO_RE = /^(showTimesDaily|showtimes|showTimes|start_isshow|startIsshow|showcondition|verCtrSwitch|verCtrAllSwitch|saoasaoSwitch|TNStart|isNewCarousel)$/;
+  // 门控命中后直接删除的 key（素材/节点/上报类, 只可能存在于开屏模型内）
+  const SPLASH_DELETE_RE = /^(startADImage|startCardImage|tnUrl|tnId|tnMd5|tnNode|logoImg|exposalUrl|expoJson)$/;
 
   // fid 无关的开屏字段清理：递归遍历（含嵌套 JSON 字符串），凡节点命中门控 key
-  // 即按 start 分支同语义处理（频控/开关归零、startADImage 删除、launchVideos 清空、
+  // 即按 start 分支同语义处理（频控/开关归零、素材/节点删除、launchVideos 清空、
   // 兄弟 images 数组清空、ver14CloseSwitch=1）。fid 不可见（加密 body/根路径通道）
   // 或字段嵌套在 data 等子层时由此兜底。
   function scrubSplashFields(node) {
@@ -418,9 +433,19 @@
           node[k] = 0;
           dirty++;
         }
-      } else if (k === "startADImage") {
-        delete node[k];
-        dirty++;
+      } else if (k === "toShow") {
+        // 类型保真的置假(布尔/数字/字符串三种形态都可能出现)
+        const v = node[k];
+        if (v === true) {
+          node[k] = false;
+          dirty++;
+        } else if (typeof v === "number" && v > 0) {
+          node[k] = 0;
+          dirty++;
+        } else if (v === "true" || v === "1") {
+          node[k] = "false";
+          dirty++;
+        }
       } else if (k === "ver14CloseSwitch") {
         if (node[k] !== 1) {
           node[k] = 1;
@@ -429,6 +454,11 @@
       } else if (k === "launchVideos" || k === "LaunchVideos") {
         if (Array.isArray(node[k]) && node[k].length) {
           node[k] = [];
+          dirty++;
+        }
+      } else if (SPLASH_DELETE_RE.test(k)) {
+        if (node[k] !== undefined) {
+          delete node[k];
           dirty++;
         }
       }
