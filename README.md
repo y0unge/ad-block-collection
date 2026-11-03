@@ -1,6 +1,6 @@
 ﻿# 去广告合集
 
-Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的去广告插件；网易云音乐 VIP 解锁、支付宝商品关键词监控为独立插件。
+Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**、**墨迹天气**的去广告插件；网易云音乐 VIP 解锁、支付宝商品关键词监控为独立插件。
 
 ## 插件一览
 
@@ -10,10 +10,11 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的
 | **闲鱼去广告** (XianyuAdBlock) | 仅闲鱼 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.plugin` |
 | **京东去广告** (JDAdBlock) | 仅京东 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JDAdBlock.plugin` |
 | **传祺去广告** (TrumpchiAdBlock) | 仅广汽传祺 | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/TrumpchiAdBlock.plugin` |
+| **墨迹天气去广告** (MojiAdBlock) | 仅墨迹天气（独立安装） | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/MojiAdBlock.plugin` |
 | **网易云音乐 VIP 解锁** (NeteaseMusicVIP) | 仅网易云（独立安装，默认开启，参数中可关闭） | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/NeteaseMusicVIP.plugin` |
 | **支付宝商品关键词监控** (AlipayGoodsMonitor) | 仅支付宝「新惊喜市场」商品流（独立安装，参数中可配置关键词） | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/AlipayGoodsMonitor.plugin` |
 
-脚本（`XianyuAdBlock.js` / `JD_remove_ads.js` / `netease_music_vip.js` 等）已通过插件内远程地址引用，无需手动安装。
+脚本（`XianyuAdBlock.js` / `JD_remove_ads.js` / `moji_my_page.js` / `netease_music_vip.js` 等）已通过插件内远程地址引用，无需手动安装。
 
 ## 使用前提
 
@@ -80,6 +81,19 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**的
 **网关前缀修复（生产抓包发现）**：生产环境 API 经网关路由时路径带模块前缀（`next.gacmotor.com/app/app-api/...`、`/mall/content-app/...`），与 IPA 内的裸路径（`/app-api/...`）不同，导致首版规则全部漏网。现所有 Rewrite 规则已用 `(?:[a-z0-9\-]+\/)*` 通配任意层网关前缀，两种路径形态均可命中。
 
 **仍见开屏的排查提示**：若更新插件后仍偶见开屏，依次确认——1) Loon 中插件已是最新版（插件详情看日期/重新安装）；2) MITM 总开关开启且已信任 CA 证书；3) Loon 日志搜 `[GAC-AD]`，命中说明脚本在生效，未命中则说明请求未走 MITM（检查是否被其他规则直连/分流）；4) 杀掉 App 重启验证（App 可能把开屏素材缓存到本地，接口被拦后短时间内仍可能展示一次缓存素材）。
+
+## 墨迹天气去广告
+
+基于墨迹天气 **9.0950.02 (com.moji.MojiWeather)** 脱壳 IPA 逆向分析，**独立插件**（`MojiAdBlock.plugin`），不包含在去广告合集（AdBlockAll）中：
+
+- **广告架构**：墨迹广告统一走自研 **TPN 聚合**（`Commercial/Adv/`），主通道 `AdvSystemNetworkManager` 为 **GCDAsyncSocket 长连接**（私有 PB 协议，MITM 不可行，只能域名 REJECT），另有 HTTP 通道（`tpnadx-new.moji.com` 的 bid/request/openapi、`tpnda-new.moji.com/v1/open/da`、`tpnapi-new.moji.com/v2/open/*` 配置、`tpntk/adxtpntk` token），HTTP/TCP 地址由服务端下发。五个 `tpn*-new.moji.com` 域名全部 REJECT（Loon 规则对 VPN 层所有 TCP 生效，含 socket 长连接）
+- **联盟兜底**：`SplashAdvSDKManager` 内置 Baidu/GDT/JAD(京东羚珑)/Tanx/TopOn/Toutiao 七家工厂 + `SplashC2SBidding*` C2S 竞价，自研通道被拦后按竞价结果走联盟 SDK 兜底——百度 mobads 系、广点通 `gdt.qq.com`、穿山甲 `pangle.cn`/`ad.toutiao.com` 系、`tanx.com`、`anythink.com`、京东 `dsp-x.jd.com`/`janapi.jd.com`/`xlog.jd.com`（**只封具体域名不动 `*.jd.com`**，防误伤京东购物）、美图广告跟踪 `track.gao7.com`/`click.meitustat.com` 全部 REJECT，使兜底也无素材
+- **开屏广告**：`new_ad_splash` 位（`SplashADSRequest` PB 经 socket），数据源被切断后 `WeatherSplashGateTiming` 等不到数据即跳过开屏；开屏联动横幅（`main_ad_splash_banner`，开屏关闭后残留在天气页顶部）与开屏后会员推广整屏页（`mcmn.api.moji.com/operational/adnovice`，URL reject）一并处理。**存量缓存提示**：开屏素材会落本地 SQLite `splashTable`（`end_time` 内有效），装插件后如仍见一次开屏，清一次 App 数据或卸载重装
+- **天气页横幅**：`SummaryTopBannerView` 是**广告位**而非固定 UI（IPA 实锤：`ca_didClickAd:`、`_advInterfaceTopBanner`、`new_ad_weather_banner1/2/3`、`main_ad_feed_topbanner`），无广告数据即不展示
+- **金刚区（工具栏）**：`kingkongAdList` 广告项随 TPN 一起消失；**工具栏本体无法网络级移除**——其数据在天气主接口 `weather.api.moji.com/data/home` 的 **protobuf**（`ParentChild_Weather*`）里且有本地归档缓存，与 UI 级插件（Flex/助手补丁）"整栏移除"的效果不同，介意者勿装或搭配 UI 级补丁
+- **时景关注页推荐**：`sns.api.moji.com/user/dynamic_v9/json/someone_interest`（"猜你感兴趣"）URL reject；关注动态本体 `friend_dynamic_list` 不动
+- **我的页精简**（参数可配）：运营横幅（`p_requestOperateBanner` → `AdvDataManager`，随 TPN 消失）、宫格 SDK 广告（GDT/百度/穿山甲 cell）与福利广告卡（百度 welfare card，随联盟域名消失）之外，另附 `moji_my_page.js` 对 `mme.api.moji.com/json/entrance/list` 响应按关键词剔除 region/入口（结构经 IPA 本地兜底 `UserCenterTool.json` 实锤：`entrance_region_res_list`→`entrance_res_list`）；关键词在插件「参数」`my_filter` 配置（默认 `广告,福利,活动,商城,游戏,邀请,赚,红包,任务,领`），`my_simplify` 开关可整体关闭；Loon 日志搜 `[MJ-My]` 可观测命中
+- **观测与排查**：路径级 reject 需 MITM（仅 4 个域名：sns/mcmn/actv/mme.api.moji.com，均为低频接口）；若时景社区/我的页异常，先注释 `[MITM]` 行排查（可能证书校验）；REJECT 域名规则先于 MITM 生效无需解密；仍见开屏按「插件已是最新 → MITM 开关 → 清 App 缓存」顺序排查。**残留风险**：TPN 通道 HTTP/TCP 地址由服务端下发、部分主域走 HTTPDNS（`[HTTPDNS-EXT]` 日志 + `moji_domains` 配置），若墨迹后续换域名或走 IP 直连绕过域名 REJECT，抓包确认新域名/IP 后补进 `[Rule]`；开屏走 `WeatherSplashGateTiming` 数据就绪门控，等不到数据会短超时跳过，不会被卡住
 
 ## 网易云音乐 VIP 解锁
 

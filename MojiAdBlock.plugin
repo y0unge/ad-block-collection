@@ -1,0 +1,156 @@
+#!name = 墨迹天气去广告
+#!desc = 基于墨迹天气 9.0950.02 脱壳 IPA 逆向分析：开屏广告（TPN 自研广告聚合 + 百度/广点通/穿山甲/京东羚珑/TopOn/Tanx 联盟兜底）、天气页顶部横幅与金刚区广告位、我的页运营横幅/菜单广告/福利广告卡、时景关注页"猜你感兴趣"推荐、开屏后会员推广页全部切断；另附我的页面入口精简脚本（关键词可配）。开屏/横幅/金刚区为广告位而非固定 UI，广告数据源被切断后不展示；金刚区工具栏本体与天气卡片为 protobuf 主数据（weather.api.moji.com/data/home）无法网络级移除，只能移除其中广告项。
+#!author = y0unge
+#!homepage = https://github.com/y0unge/ad-block-collection
+#!category = 去广告
+#!tag = 墨迹天气,去广告,开屏
+#!date = 2026-11-03
+#!loon_version = 3.5.1(983)
+
+# ================================================================
+# 墨迹天气 (com.moji.MojiWeather) 去广告 Loon 插件
+# 适配版本: 9.0950.02 (脱壳 IPA arm64 逆向)
+#
+# 逆向依据 (IPA: com.moji.MojiWeather-9.0950.02-Decrypted.ipa):
+#
+#   广告架构: 自研 TPN 广告聚合 (Commercial/Adv/) 统一供广告数据,
+#   主通道 AdvSystemNetworkManager 为 GCDAsyncSocket 长连接(socket 协议,
+#   MITM 不可行, 只能域名 REJECT), HTTP 与 TCP 地址由服务端下发
+#   (tk/da/req/bid/ol_req + tcp_domain/tcp_port), IPA 内默认域名:
+#     · tpnadx-new.moji.com  (bid_addr/req_addr/ol_req_addr:
+#       /bid /request /openapi/req — C2S 竞价与广告请求, SplashC2SBidding*)
+#     · tpnda-new.moji.com   (da_address: /v1/open/da — 展示广告数据)
+#     · tpnapi-new.moji.com  (/v2/open/app /v2/open/placement
+#                              /v2/open/area /v2/open/eu — 广告位配置)
+#     · tpntk-new.moji.com   (tk_address: /v1/open/tk /ss/rrd — token)
+#     · adxtpntk-new.moji.com (tk_addr: /v1)
+#   墨迹自有广告域:
+#     · ad.api.moji.com      (ad/data/print ad/data2/print ad/log/stat
+#                              _show/_click/_close — 曝光点击统计, MJAdvStatManager)
+#     · adlaunch.moji.com    (开屏统计 splash_becomeAction 等)
+#     · adrvw.moji.com       (AdvAuditMaterialNetworkManager 素材审核 socket)
+#     · ugocpx.api.moji.com  (/ocpx/leave/ios — oCPX 广告转化上报)
+#   联盟兜底 (SplashAdvSDKManager 工厂: Baidu/GDT/JAD/Membership/Tanx/
+#   TopOn/Toutiao): 自研通道失败后 App 按 C2S 竞价结果走联盟 SDK 兜底,
+#   全部联盟域名一并 REJECT, 使兜底也无素材:
+#     · 百度: mobads.baidu.com / mobads-logs / wn.pos.baidu.com /
+#       cpro.baidu.com / cpro.baidustatic.com / union.baidu.com /
+#       cpu-openapi.baidu.com / ada.baidu.com / aden.baidu.com
+#     · 广点通: gdt.qq.com 系 (GDTMobSDK.framework)
+#     · 穿山甲/TT: pangle.cn / csjplatform.com / pangolin-sdk-toutiao.com /
+#       ad.toutiao.com / ad.oceanengine.com / lf-ad-ies.bytecdn.cn /
+#       is.snssdk.com / toblog.ctobsnssdk.com (CSJAdSDK.bundle)
+#     · 阿里妈妈 Tanx: tanx.com (TanxMonitor/opehs.tanx.com)
+#     · TopOn/AnyThink: anythink.com (ime/nfo.anythink.com)
+#     · 京东羚珑 JADYun: dsp-x.jd.com/adx/sdk, janapi.jd.com/ansdk,
+#       xlog.jd.com (只封这三个具体域名, 不动 *.jd.com 防误伤京东购物)
+#     · 美图广告跟踪: track.gao7.com / click.meitustat.com
+#
+#   广告位清单(IPA 实锤, 均走 TPN 供数, 数据源被 REJECT 后不展示):
+#     · 开屏: new_ad_splash (SplashManager→SplashADSRequest PB 经 socket;
+#       本地 splashTable 缓存见下方"存量缓存"说明) + 开屏联动横幅
+#       main_ad_splash_banner/bannervideo (SplashLinkBannerManager,
+#       开屏关闭后残留于天气页顶部的联动横幅)
+#     · 天气页横幅: SummaryTopBannerView (ca_didClickAd:/_advInterfaceTopBanner/
+#       new_ad_weather_banner1/2/3/main_ad_feed_topbanner) — 顶部横幅是
+#       广告位而非固定 UI, 无广告数据即不展示
+#     · 金刚区广告: _kingkongAdList (new_ad_me_menu1/menu2 同为我的页菜单广告位)
+#     · 我的页: p_requestOperateBanner→AdvDataManager (运营横幅)、
+#       UserCenterTabarContentCell p_addSDKAdView (GDT/百度/穿山甲宫格广告)、
+#       UserCenterWelfareCell (baiduMobAdNativeWelfareCard 福利广告卡)
+#     · 开屏后推广页: SplashScreenPromotionManager (mcmn.api.moji.com
+#       /operational/adnovice, 会员推广整屏页)
+#
+#   网络级移除边界(诚实说明):
+#     · 金刚区工具栏本体/天气卡片: 主数据为 protobuf
+#       (weather.api.moji.com/data/home, ParentChild_Weather*) 且本地归档缓存
+#       (citysKingkongModelDataPath.archive), 无法在 Loon 网络层安全篡改,
+#       本插件仅移除其中广告项(与"整栏移除"的 UI 级插件效果不同)
+#     · 关注页推荐: sns.api.moji.com/user/dynamic_v9/json/someone_interest
+#       ("猜你感兴趣", kRecommendUserCell; 关注动态本体
+#       friend_dynamic_list 不动)
+#
+# 使用说明:
+#   1. Loon 安装并信任 CA 证书，开启 MITM 总开关
+#   2. 安装本插件即可生效; 我的页入口精简可在「参数」中调整:
+#        my_simplify  开关(默认开): 我的页入口列表关键词过滤
+#        my_filter     关键词(默认: 广告,福利,活动,商城,游戏,邀请,赚,红包,任务)
+#   3. 观测: Loon 日志搜 [MJ-My] 可见我的页入口精简命中流水
+#   4. 存量缓存: 开屏素材会缓存到本地 SQLite splashTable(end_time 内有效),
+#      装插件后如仍见一次开屏, 在系统设置里清一次墨迹天气数据或卸载重装
+#   5. 若时景社区/我的页功能异常(MITM 域名证书校验), 先注释 [MITM] 行排查,
+#      再反馈; 排查顺序: Loon 日志无规则命中→检查是否被其他插件/分流直连
+#   6. 需 Loon 3.5.1(983)+ (新语法; 旧语法 http-response 部分环境不触发)
+# ================================================================
+
+[Argument]
+my_simplify = switch,true,type=boolean,tag=精简我的页面,desc=按关键词过滤「我的」页入口列表（mme.api.moji.com/json/entrance/list 响应篡改，region_name/entrance_name 命中即剔除）；关闭则完全放行
+my_filter = input,"广告,福利,活动,商城,游戏,邀请,赚,红包,任务,领",type=string,tag=我的页过滤关键词,desc=逗号/顿号分隔，匹配入口(region/entrance)名称，留空则不过滤任何入口；仅 my_simplify 开启时生效
+
+[Rule]
+# ===== 墨迹自研 TPN 广告聚合(开屏/横幅/金刚区/信息流广告数据源, HTTP+TCP 双通道) =====
+DOMAIN,tpnadx-new.moji.com,REJECT
+DOMAIN,tpnapi-new.moji.com,REJECT
+DOMAIN,tpnda-new.moji.com,REJECT
+DOMAIN,tpntk-new.moji.com,REJECT
+DOMAIN,adxtpntk-new.moji.com,REJECT
+# ===== 墨迹自有广告统计/素材审核域名 =====
+DOMAIN,ad.api.moji.com,REJECT
+DOMAIN,adlaunch.moji.com,REJECT
+DOMAIN,adrvw.moji.com,REJECT
+DOMAIN,ugocpx.api.moji.com,REJECT
+# ===== 阿里妈妈 Tanx =====
+DOMAIN-SUFFIX,tanx.com,REJECT
+# ===== 广点通 GDT =====
+DOMAIN-SUFFIX,gdt.qq.com,REJECT
+DOMAIN,qzs.qq.com,REJECT
+DOMAIN,h.trace.qq.com,REJECT
+# ===== 穿山甲 CSJ / 字节广告 =====
+DOMAIN,ad.toutiao.com,REJECT
+DOMAIN,ad.oceanengine.com,REJECT
+DOMAIN-SUFFIX,pangle.cn,REJECT
+DOMAIN-SUFFIX,csjplatform.com,REJECT
+DOMAIN,pangolin-sdk-toutiao.com,REJECT
+DOMAIN,lf-ad-ies.bytecdn.cn,REJECT
+DOMAIN,is.snssdk.com,REJECT
+DOMAIN,toblog.ctobsnssdk.com,REJECT
+# ===== 百度联盟 =====
+DOMAIN,mobads.baidu.com,REJECT
+DOMAIN,mobads-logs.baidu.com,REJECT
+DOMAIN,wn.pos.baidu.com,REJECT
+DOMAIN,cpro.baidu.com,REJECT
+DOMAIN,cpro.baidustatic.com,REJECT
+DOMAIN,union.baidu.com,REJECT
+DOMAIN,cpu-openapi.baidu.com,REJECT
+DOMAIN,ada.baidu.com,REJECT
+DOMAIN,aden.baidu.com,REJECT
+# ===== TopOn / AnyThink 聚合 =====
+DOMAIN-SUFFIX,anythink.com,REJECT
+# ===== 京东羚珑 JADYun (只封具体域名, 不动 *.jd.com) =====
+DOMAIN,dsp-x.jd.com,REJECT
+DOMAIN,dsp-test-x.jd.com,REJECT
+DOMAIN,janapi.jd.com,REJECT
+DOMAIN,xlog.jd.com,REJECT
+# ===== 美图广告跟踪 =====
+DOMAIN,track.gao7.com,REJECT
+DOMAIN,click.meitustat.com,REJECT
+
+[Rewrite]
+# --- 时景关注页"猜你感兴趣"推荐 (关注动态本体 friend_dynamic_list 不动) ---
+^https?:\/\/sns\.api\.moji\.com\/user\/dynamic_v9\/json\/someone_interest url reject
+# --- 开屏后会员推广整屏页 (SplashScreenPromotion, mcmn 其余路径为新手引导/日志不影响) ---
+^https?:\/\/mcmn\.api\.moji\.com\/operational\/adnovice url reject
+# --- oCPX 广告转化设备注册上报 (actv.api.moji.com 同时承载设备注册 newRegIos, 只封 ocpx 路径) ---
+^https?:\/\/actv\.api\.moji\.com\/weather\/ocpx\/regIosOcpx url reject
+
+[Script]
+# 我的页入口精简: json/entrance/list 响应按关键词剔除 region/entrance
+# (本地 UserCenterTool.json 兜底结构实锤: entrance_region_res_list→entrance_res_list)
+# 观测: Loon 日志搜 [MJ-My]
+response if ${url} ~= /^https?:\/\/mme\.api\.moji\.com\/json\/entrance\/list/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/moji_my_page.js", {${my_simplify}, ${my_filter}}) with tag="墨迹_我的页精简", timeout=20, requires_body=true
+
+[MITM]
+# 低耗电: 仅保留有 Rewrite/Script 规则实际命中的域名
+# (TPN/联盟/统计域名走 [Rule] REJECT, 先于 MITM 生效无需解密;
+#  weather.api.moji.com 为 protobuf 主数据不做 MITM)
+hostname = sns.api.moji.com, mcmn.api.moji.com, actv.api.moji.com, mme.api.moji.com
