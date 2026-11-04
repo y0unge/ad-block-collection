@@ -4,7 +4,7 @@
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
 #!tag = 闲鱼,京东,传祺,去广告
-#!date = 2026-10-30
+#!date = 2026-11-04
 
 # ================================================================
 # 去广告合集 (闲鱼 + 京东 + 传祺) Loon 插件
@@ -142,7 +142,13 @@ DOMAIN,cdn.adscloud.huawei.com.cn,REJECT
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.idle\.idleadv\.(?:app\.launch\.report|xyflowin\.upload|scene\.restore)\/ url reject
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home\.pop\.interest\.upload\/ url reject
 # ==================== 京东 ====================
-# --- 推荐流接口直接返回空 JSON ---
+# --- 京东: 开屏广告素材断供 (2026-11-04 抓包实锤) ---
+# 开屏配置经推送通道下发(不经 HTTP,素材 URL 三次抓包全流量零命中),前台启动本地决策展示;
+# 素材是唯一网络触点: 全屏开屏图 s1125x2436_jfs (Image_JDAppHome 预取) + material-video
+# 视频开屏(主页面 avplayer 实时播放),断素材即断展示;磁盘存量素材到期后失效,重装可立即清空
+^https?:\/\/[a-z0-9]*\.?360buyimg\.com\/mobilecms\/s1\d{3}x2\d{3}_jfs\/ url reject
+^https?:\/\/[a-z0-9]*\.?360buyimg\.com\/material-video\/ url reject
+# --- 京东: 推荐流接口直接返回空 JSON ---
 ^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=uniformRecommend\d* url reject-dict
 # --- storage.jd.com 上的推荐资源返回空 JSON ---
 ^https:\/\/storage\.jd\.com\/mpaas2-public\/product\/[^\/]+\/recommend_jdur url reject-dict

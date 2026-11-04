@@ -1,10 +1,10 @@
 #!name = 京东去广告
-#!desc = 基于 16.1.80 脱壳 IPA 逆向 + 抓包分析：开屏广告(start/startADImage，含加密 body 与根路径通道的 fid 无关兜底清理)、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、纯广告接口(URL+POST body 双通道)、QUIC 旁路拦截、埋点上报域名屏蔽。命中拦截/清理时记录 [JD-FID] 日志（低耗电：无全量流水、无观测 DNS 查询、无特征响应预检跳过）。
+#!desc = 基于 16.1.80 脱壳 IPA 逆向 + 抓包分析：开屏广告素材断供（配置经推送通道下发不经 HTTP，素材是唯一网络触点：s1125x2436 全屏图 + material-video 视频直接 REJECT）、开屏响应字段清理（start/startADImage + 天幕 TN 体系字段 + fid 无关兜底）、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、纯广告接口(URL+POST body 双通道)、QUIC 旁路拦截、埋点上报域名屏蔽。命中拦截/清理时记录 [JD-FID] 日志（低耗电）。
 #!author = aoconch, y0unge
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
 #!tag = 京东,去广告,去推荐
-#!date = 2026-10-30
+#!date = 2026-11-04
 
 # ================================================================
 # 京东 (com.360buy.jdmobile) 去广告 Loon 插件
@@ -61,6 +61,16 @@ DOMAIN,im-x.jd.com,REJECT
 DOMAIN,imgcps.jd.com,REJECT
 
 [Rewrite]
+# --- 开屏广告素材断供 (2026-11-04 抓包实锤) ---
+# 京东开屏配置经推送通道下发(不经 HTTP, 三次抓包中素材 URL 在所有请求/响应体中零命中),
+# 前台启动本地决策展示; 素材是唯一网络触点:
+#   1) 全屏开屏图: mobilecms/s1125x2436_jfs/ (Image_JDAppHome sche 预取,
+#      referer download_Image_JDAppHome), 尺寸规格 s1xxx x 2xxx = 全屏竖版创意
+#   2) 开屏视频: material-video/ (实测 referer play:avplayerSH_JDMainPageViewController,
+#      主页面开屏视频广告实时下载+播放)
+# 断素材后新广告无素材可渲染; 磁盘存量素材到期(广告排期结束)后失效, 卸载重装可立即清空
+^https?:\/\/[a-z0-9]*\.?360buyimg\.com\/mobilecms\/s1\d{3}x2\d{3}_jfs\/ url reject
+^https?:\/\/[a-z0-9]*\.?360buyimg\.com\/material-video\/ url reject
 # 推荐流接口直接返回空 JSON
 ^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=uniformRecommend\d* url reject-dict
 # storage.jd.com 上的推荐资源返回空 JSON
