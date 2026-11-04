@@ -1,10 +1,10 @@
 #!name = 墨迹天气去广告
-#!desc = 基于墨迹天气 9.0950.02 脱壳 IPA 逆向分析：开屏广告（TPN 自研广告聚合 + 百度/广点通/穿山甲/京东羚珑/TopOn/Tanx 联盟兜底）、天气页顶部横幅与金刚区广告位、我的页运营横幅/菜单广告/福利广告卡、时景关注页"猜你感兴趣"推荐、开屏后会员推广页全部切断；另附我的页面入口精简脚本（关键词可配）。开屏/横幅/金刚区为广告位而非固定 UI，广告数据源被切断后不展示；金刚区工具栏本体与天气卡片为 protobuf 主数据（weather.api.moji.com/data/home）无法网络级移除，只能移除其中广告项。
+#!desc = 基于墨迹天气 9.0950.02 脱壳 IPA 逆向分析：开屏广告（TPN 自研广告聚合 + 百度/广点通/穿山甲/京东羚珑/TopOn/Tanx 联盟兜底）、天气页顶部横幅与金刚区广告位、我的页运营横幅/菜单广告/福利广告卡、时景关注页"猜你感兴趣"推荐、开屏后会员推广页全部切断；另附我的页面入口精简脚本（关键词可配）与「免广告会员」状态模拟（仅改写 isAdFree 档位标志，不动 isMember/vipType，零 VIP 副作用——广告系统原生跳过广告请求与广告位，比域名封禁更彻底）。开屏/横幅/金刚区为广告位而非固定 UI，广告数据源被切断后不展示；金刚区工具栏本体与天气卡片为 protobuf 主数据（weather.api.moji.com/data/home）无法网络级移除，只能移除其中广告项。
 #!author = y0unge
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
-#!tag = 墨迹天气,去广告,开屏
-#!date = 2026-11-03
+#!tag = 墨迹天气,去广告,开屏,免广告会员
+#!date = 2026-11-04
 #!loon_version = 3.5.1(983)
 
 # ================================================================
@@ -70,20 +70,39 @@
 #       ("猜你感兴趣", kRecommendUserCell; 关注动态本体
 #       friend_dynamic_list 不动)
 #
+#   「免广告会员」状态模拟(2026-11-04, 参数 moji_adfree, 默认开):
+#     · 依据: IAPMemberInfoModel ivars={isMember,isAdFree,vipType,memberInfo}
+#       (get_member_info/memberSyncV2 响应模型), SnsUserData ivars=
+#       {_member,_isAdFree,...}(登录响应模型, NSCoding 归档 DataStore);
+#       广告系统经 ad_reloadAdsForMemberStatusChange 依会员状态重载广告;
+#       墨迹自有独立「免广告会员」档(adver_free 接口组:
+#       json/adver_free/{adver_free_homepage,adver_free_list,add_order,
+#       pay_order,adver_free_detail}), 唯一权益=无广告
+#     · 逻辑: 仅改写/注入 isAdFree=1, 不动 isMember/vipType/memberType/
+#       到期时间 —— 不产生 VIP 数据功能副作用(40 天预报/流感地图等付费
+#       数据由服务端按账号裁剪, 与 isAdFree 无关, 模拟也变不出来)
+#     · 通道: mcs.api.moji.com/json/member/{get_member_info,memberSyncV2}
+#       (冷启动 requestColdLaunchMemberRequest 同步) + sns.api.moji.com
+#       登录/资料响应(账号资料接口), 重装/换设备后重新同步同样生效
+#     · 效果: 广告系统原生跳过广告请求与广告位(比域名封禁更彻底,
+#       金刚区/我的页广告 cell 连位都不占); 与 [Rule] 域名封禁双保险
+#
 # 使用说明:
 #   1. Loon 安装并信任 CA 证书，开启 MITM 总开关
-#   2. 安装本插件即可生效; 我的页入口精简可在「参数」中调整:
+#   2. 安装本插件即可生效; 参数:
+#        moji_adfree  开关(默认开): 免广告会员状态模拟
 #        my_simplify  开关(默认开): 我的页入口列表关键词过滤
-#        my_filter     关键词(默认: 广告,福利,活动,商城,游戏,邀请,赚,红包,任务)
-#   3. 观测: Loon 日志搜 [MJ-My] 可见我的页入口精简命中流水
+#        my_filter    关键词(默认: 广告,福利,活动,商城,游戏,邀请,赚,红包,任务)
+#   3. 观测: Loon 日志搜 [MJ-My](我的页精简) / [MJ-ADFree](免广告档)
 #   4. 存量缓存: 开屏素材会缓存到本地 SQLite splashTable(end_time 内有效),
 #      装插件后如仍见一次开屏, 在系统设置里清一次墨迹天气数据或卸载重装
-#   5. 若时景社区/我的页功能异常(MITM 域名证书校验), 先注释 [MITM] 行排查,
+#   5. 若时景社区/我的页/会员功能异常(MITM 域名证书校验), 先注释 [MITM] 行排查,
 #      再反馈; 排查顺序: Loon 日志无规则命中→检查是否被其他插件/分流直连
 #   6. 需 Loon 3.5.1(983)+ (新语法; 旧语法 http-response 部分环境不触发)
 # ================================================================
 
 [Argument]
+moji_adfree = switch,true,type=boolean,tag=免广告会员模拟,desc=改写会员接口响应中的 isAdFree 为已生效（墨迹自家「免广告会员」档位，唯一权益是无广告），广告系统原生跳过广告请求与广告位；不动 isMember/vipType/到期时间，无 VIP 数据功能副作用
 my_simplify = switch,true,type=boolean,tag=精简我的页面,desc=按关键词过滤「我的」页入口列表（mme.api.moji.com/json/entrance/list 响应篡改，region_name/entrance_name 命中即剔除）；关闭则完全放行
 my_filter = input,"广告,福利,活动,商城,游戏,邀请,赚,红包,任务,领",type=string,tag=我的页过滤关键词,desc=逗号/顿号分隔，匹配入口(region/entrance)名称，留空则不过滤任何入口；仅 my_simplify 开启时生效
 
@@ -148,9 +167,14 @@ DOMAIN,click.meitustat.com,REJECT
 # (本地 UserCenterTool.json 兜底结构实锤: entrance_region_res_list→entrance_res_list)
 # 观测: Loon 日志搜 [MJ-My]
 response if ${url} ~= /^https?:\/\/mme\.api\.moji\.com\/json\/entrance\/list/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/moji_my_page.js", {${my_simplify}, ${my_filter}}) with tag="墨迹_我的页精简", timeout=20, requires_body=true
+# 免广告会员状态模拟: 仅改写/注入 isAdFree=1(IAPMemberInfoModel/SnsUserData 实锤字段),
+# 不动 isMember/vipType/到期时间; 覆盖冷启动会员同步 + 登录/资料响应(重装重登后同样生效)
+# 观测: Loon 日志搜 [MJ-ADFree]
+response if ${url} ~= /^https?:\/\/mcs\.api\.moji\.com\/json\/member\/(?:get_member_info|memberSyncV2)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/moji_adfree.js", {${moji_adfree}}) with tag="墨迹_免广告会员", timeout=20, requires_body=true
+response if ${url} ~= /^https?:\/\/sns\.api\.moji\.com\/sns\/json\/(?:account\/(?:login|loginBySMSCode|fastbm)|profile\/get_info_v2)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/moji_adfree.js", {${moji_adfree}}) with tag="墨迹_免广告会员_登录", timeout=20, requires_body=true
 
 [MITM]
 # 低耗电: 仅保留有 Rewrite/Script 规则实际命中的域名
 # (TPN/联盟/统计域名走 [Rule] REJECT, 先于 MITM 生效无需解密;
 #  weather.api.moji.com 为 protobuf 主数据不做 MITM)
-hostname = sns.api.moji.com, mcmn.api.moji.com, actv.api.moji.com, mme.api.moji.com
+hostname = sns.api.moji.com, mcmn.api.moji.com, actv.api.moji.com, mme.api.moji.com, mcs.api.moji.com

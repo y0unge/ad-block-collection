@@ -14,7 +14,7 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**、
 | **网易云音乐 VIP 解锁** (NeteaseMusicVIP) | 仅网易云（独立安装，默认开启，参数中可关闭） | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/NeteaseMusicVIP.plugin` |
 | **支付宝商品关键词监控** (AlipayGoodsMonitor) | 仅支付宝「新惊喜市场」商品流（独立安装，参数中可配置关键词） | `https://raw.githubusercontent.com/y0unge/ad-block-collection/main/AlipayGoodsMonitor.plugin` |
 
-脚本（`XianyuAdBlock.js` / `JD_remove_ads.js` / `moji_my_page.js` / `netease_music_vip.js` 等）已通过插件内远程地址引用，无需手动安装。
+脚本（`XianyuAdBlock.js` / `JD_remove_ads.js` / `moji_my_page.js` / `moji_adfree.js` / `netease_music_vip.js` 等）已通过插件内远程地址引用，无需手动安装。
 
 ## 使用前提
 
@@ -92,8 +92,9 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**、
 - **天气页横幅**：`SummaryTopBannerView` 是**广告位**而非固定 UI（IPA 实锤：`ca_didClickAd:`、`_advInterfaceTopBanner`、`new_ad_weather_banner1/2/3`、`main_ad_feed_topbanner`），无广告数据即不展示
 - **金刚区（工具栏）**：`kingkongAdList` 广告项随 TPN 一起消失；**工具栏本体无法网络级移除**——其数据在天气主接口 `weather.api.moji.com/data/home` 的 **protobuf**（`ParentChild_Weather*`）里且有本地归档缓存，与 UI 级插件（Flex/助手补丁）"整栏移除"的效果不同，介意者勿装或搭配 UI 级补丁
 - **时景关注页推荐**：`sns.api.moji.com/user/dynamic_v9/json/someone_interest`（"猜你感兴趣"）URL reject；关注动态本体 `friend_dynamic_list` 不动
+- **免广告会员模拟**（2026-11-04 新增，参数 `moji_adfree` 默认开）：`moji_adfree.js` 对冷启动会员同步（`mcs.api.moji.com/json/member/{get_member_info,memberSyncV2}`）与登录/资料响应（`sns.api.moji.com` 账号接口）**仅改写/注入 `isAdFree=1`**——墨迹自家就有独立「免广告会员」档（`adver_free` 接口组），唯一权益就是无广告；广告系统经 `ad_reloadAdsForMemberStatusChange` 原生跳过广告请求与广告位（金刚区/我的页广告 cell 连位都不占），比域名封禁更彻底，与 `[Rule]` 双保险。**不动 `isMember`/`vipType`/到期时间**——40 天预报/流感地图等付费数据由服务端按账号裁剪（`noMemImagesArray`/`unMemberDesc` 实锤），`isAdFree` 与它们无关，模拟也变不出付费数据，零 VIP 副作用；本地模拟 11 场景全过（改写/注入/开关/坏 JSON/深层限界均安全放行），Loon 日志搜 `[MJ-ADFree]` 可观测命中
 - **我的页精简**（参数可配）：运营横幅（`p_requestOperateBanner` → `AdvDataManager`，随 TPN 消失）、宫格 SDK 广告（GDT/百度/穿山甲 cell）与福利广告卡（百度 welfare card，随联盟域名消失）之外，另附 `moji_my_page.js` 对 `mme.api.moji.com/json/entrance/list` 响应按关键词剔除 region/入口（结构经 IPA 本地兜底 `UserCenterTool.json` 实锤：`entrance_region_res_list`→`entrance_res_list`）；关键词在插件「参数」`my_filter` 配置（默认 `广告,福利,活动,商城,游戏,邀请,赚,红包,任务,领`），`my_simplify` 开关可整体关闭；Loon 日志搜 `[MJ-My]` 可观测命中
-- **观测与排查**：路径级 reject 需 MITM（仅 4 个域名：sns/mcmn/actv/mme.api.moji.com，均为低频接口）；若时景社区/我的页异常，先注释 `[MITM]` 行排查（可能证书校验）；REJECT 域名规则先于 MITM 生效无需解密；仍见开屏按「插件已是最新 → MITM 开关 → 清 App 缓存」顺序排查。**残留风险**：TPN 通道 HTTP/TCP 地址由服务端下发、部分主域走 HTTPDNS（`[HTTPDNS-EXT]` 日志 + `moji_domains` 配置），若墨迹后续换域名或走 IP 直连绕过域名 REJECT，抓包确认新域名/IP 后补进 `[Rule]`；开屏走 `WeatherSplashGateTiming` 数据就绪门控，等不到数据会短超时跳过，不会被卡住
+- **观测与排查**：路径级 reject/脚本需 MITM（仅 5 个域名：sns/mcmn/actv/mme/mcs.api.moji.com，均为低频接口；mcs 为会员域名，若真实会员的会员中心/支付异常可先关 `moji_adfree` 参数或注释 [MITM] 中 mcs 行排查）；若时景社区/我的页异常，先注释 `[MITM]` 行排查（可能证书校验）；REJECT 域名规则先于 MITM 生效无需解密；仍见开屏按「插件已是最新 → MITM 开关 → 清 App 缓存」顺序排查。**残留风险**：TPN 通道 HTTP/TCP 地址由服务端下发、部分主域走 HTTPDNS（`[HTTPDNS-EXT]` 日志 + `moji_domains` 配置），若墨迹后续换域名或走 IP 直连绕过域名 REJECT，抓包确认新域名/IP 后补进 `[Rule]`；开屏走 `WeatherSplashGateTiming` 数据就绪门控，等不到数据会短超时跳过，不会被卡住
 
 ## 网易云音乐 VIP 解锁
 
