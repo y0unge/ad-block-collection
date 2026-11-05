@@ -1,5 +1,5 @@
 #!name = 京东去广告
-#!desc = 基于 16.1.80 脱壳 IPA 逆向 + 抓包分析：开屏广告素材断供（配置经推送通道下发不经 HTTP，素材是唯一网络触点：s1125x2436 全屏图 + material-video 视频直接 REJECT）、开屏响应字段清理（start/startADImage + 天幕 TN 体系字段 + fid 无关兜底）、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、纯广告接口(URL+POST body 双通道)、QUIC 旁路拦截、埋点上报域名屏蔽。命中拦截/清理时记录 [JD-FID] 日志（低耗电）。
+#!desc = 基于 16.1.80 脱壳 IPA 逆向 + 抓包分析：开屏广告素材断供（配置经推送通道下发不经 HTTP，素材是唯一网络触点：s1125x2436 全屏图 + material-video 视频直接 REJECT）+ 推送长连接拦截（dispatchContent 营销/配置分发通道，真通知走 APNs 兜底）、开屏响应字段清理（start/startADImage + 天幕 TN 体系字段 + fid 无关兜底）、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、纯广告接口(URL+POST body 双通道)、QUIC 旁路拦截、埋点上报域名屏蔽。命中拦截/清理时记录 [JD-FID] 日志（低耗电）。
 #!author = aoconch, y0unge
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
@@ -59,6 +59,17 @@ DOMAIN,policy.jd.com,REJECT
 # 广告
 DOMAIN,im-x.jd.com,REJECT
 DOMAIN,imgcps.jd.com,REJECT
+# 推送长连接: 断配置/营销下发通道 (实验性补充, 可按需删除)
+# JDBPushServiceModule 长连接承载 dispatchContent 路由分发——推送消息携带 routerUrl
+# 可分发至任意模块(弹窗/红点/营销配置, 二进制含 ReportLiveAdData/adClickUrl 广告
+# 数据通道), 为开屏配置"不经 HTTP"的疑似载体;拦截后:
+#   - 真通知不受影响(被杀进程时本就只有 APNs, 活跃期双通道并行)
+#   - 红点/角标实时性微降; SDK 有 exceeded maximum retry attempts 上限 +
+#     enableTCPToHTTP 回退, 无重试风暴风险(毫秒级 RST, 无超时挂起)
+#   - 观测: 若 Loon 日志出现 jpushsc 高频 reject 连发再撤;素材断供为主保险
+DOMAIN,jpushsc.m.jd.com,REJECT
+DOMAIN,jpushjd.m.jd.com,REJECT
+DOMAIN,cloudpush.jd.com,REJECT
 
 [Rewrite]
 # --- 开屏广告素材断供 (2026-11-04 抓包实锤) ---

@@ -70,6 +70,14 @@ DOMAIN,policy.jd.com,REJECT
 # --- 京东: 广告 ---
 DOMAIN,im-x.jd.com,REJECT
 DOMAIN,imgcps.jd.com,REJECT
+# --- 京东: 推送长连接, 断配置/营销下发通道 (实验性补充, 可按需删除) ---
+# JDBPushServiceModule 长连接承载 dispatchContent 路由分发(推送消息携带 routerUrl
+# 可分发至任意模块,含广告数据),为开屏配置"不经 HTTP"的疑似载体;真通知走 APNs
+# 兜底不受影响;SDK 有重试上限+enableTCPToHTTP 回退,无重试风暴风险;
+# 若 Loon 日志出现 jpushsc 高频 reject 连发再撤;素材断供为主保险
+DOMAIN,jpushsc.m.jd.com,REJECT
+DOMAIN,jpushjd.m.jd.com,REJECT
+DOMAIN,cloudpush.jd.com,REJECT
 # --- 闲鱼: 阿里妈妈 Tanx 广告交易 (click.tanx.com / ifs.tanx.com / ef-dongfeng.tanx.com) ---
 DOMAIN-SUFFIX,tanx.com,REJECT
 # --- 腾讯广点通 ---
