@@ -69,7 +69,8 @@ DOMAIN,policy.jd.com,REJECT
 # 脚本已不再使用该域名做观测日志(低耗电优化，移除每请求必超时 DNS 查询)
 # --- 京东: 广告 ---
 DOMAIN,im-x.jd.com,REJECT
-DOMAIN,imgcps.jd.com,REJECT
+# 注: imgcps.jd.com 已移除(2026-11-05)——实测流量走 imgcps1/2 子域,精确匹配从未命中(死规则),
+# 且 imgcps 为 CPS 导购图片服务,疑似承载优惠券卡片图,保留有误杀领券页风险
 # --- 京东: 推送长连接, 断配置/营销下发通道 (实验性补充, 可按需删除) ---
 # JDBPushServiceModule 长连接承载 dispatchContent 路由分发(推送消息携带 routerUrl
 # 可分发至任意模块,含广告数据),为开屏配置"不经 HTTP"的疑似载体;真通知走 APNs
@@ -150,12 +151,14 @@ DOMAIN,cdn.adscloud.huawei.com.cn,REJECT
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.idle\.idleadv\.(?:app\.launch\.report|xyflowin\.upload|scene\.restore)\/ url reject
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home\.pop\.interest\.upload\/ url reject
 # ==================== 京东 ====================
-# --- 京东: 开屏广告素材断供 (2026-11-04 抓包实锤) ---
+# --- 京东: 开屏广告素材断供 (2026-11-04 抓包实锤; 2026-11-05 修复 MITM 缺失) ---
 # 开屏配置经推送通道下发(不经 HTTP,素材 URL 三次抓包全流量零命中),前台启动本地决策展示;
 # 素材是唯一网络触点: 全屏开屏图 s1125x2436_jfs (Image_JDAppHome 预取) + material-video
 # 视频开屏(主页面 avplayer 实时播放),断素材即断展示;磁盘存量素材到期后失效,重装可立即清空
-^https?:\/\/[a-z0-9]*\.?360buyimg\.com\/mobilecms\/s1\d{3}x2\d{3}_jfs\/ url reject
-^https?:\/\/[a-z0-9]*\.?360buyimg\.com\/material-video\/ url reject
+# 注: Rewrite 仅对 MITM 解密的 HTTPS 生效,[MITM] 已含 m/storage.360buyimg.com(首版遗漏
+# 导致规则从未生效, 2026-11-05 修正)
+^https?:\/\/m\.360buyimg\.com\/mobilecms\/s1\d{3}x2\d{3}_jfs\/ url reject
+^https?:\/\/storage\.360buyimg\.com\/material-video\/ url reject
 # --- 京东: 推荐流接口直接返回空 JSON ---
 ^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=uniformRecommend\d* url reject-dict
 # --- storage.jd.com 上的推荐资源返回空 JSON ---
@@ -211,7 +214,8 @@ response if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|
 response if ${url} ~= /^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*app-api\/(?:baseinfo\/advertise\/getAdvertiseByPositionCode|login\/getLoginVideoAndCover)/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/TrumpchiSplashFix.js") with tag="传祺_开屏响应篡改", timeout=20, requires_body=true
 
 [MITM]
-# 低耗电: 京东侧仅保留有 Rewrite/Script 规则实际命中的域名(mars/policy 已 REJECT，
-# api/routine/color/waapdg 无规则引用)；闲鱼侧已覆盖 goofish.com 新网关(2026-10-29
-# 抓包确认 mtop 网关迁移)+旧 taobao.com 网关；传祺通配保持不变(收窄会漏广告)
-hostname = acs.m.goofish.com, g-acs.m.goofish.com, acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com, api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, *.gacmotor.com, *.gacne.com.cn, *.gace.com.cn
+# 低耗电: 京东侧仅保留有 Rewrite/Script 规则实际命中的域名(mars/policy 已 REJECT，无需解密)，
+# m/storage.360buyimg.com 为开屏素材断供 Rewrite 所需(2026-11-05 补，无 MITM 则 Rewrite
+# 对 HTTPS 不生效)；闲鱼侧已覆盖 goofish.com 新网关(2026-10-29 抓包确认 mtop 网关迁移)
+# +旧 taobao.com 网关；传祺通配保持不变(收窄会漏广告)
+hostname = acs.m.goofish.com, g-acs.m.goofish.com, acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com, api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, m.360buyimg.com, storage.360buyimg.com, *.gacmotor.com, *.gacne.com.cn, *.gace.com.cn

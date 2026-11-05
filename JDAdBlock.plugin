@@ -58,7 +58,9 @@ DOMAIN,policy.jd.com,REJECT
 # 脚本已不再使用该域名做观测日志(低耗电优化，移除每请求必超时 DNS 查询)
 # 广告
 DOMAIN,im-x.jd.com,REJECT
-DOMAIN,imgcps.jd.com,REJECT
+# 注: imgcps.jd.com 规则已移除(2026-11-05)——历史流量实测走 imgcps1/imgcps2.jd.com
+# 子域, 精确 DOMAIN 匹配从未命中(死规则, 移除零行为变化); 且 imgcps 为 CPS 导购
+# 图片服务, 疑似承载优惠券卡片图, 保留有误杀领券页风险
 # 推送长连接: 断配置/营销下发通道 (实验性补充, 可按需删除)
 # JDBPushServiceModule 长连接承载 dispatchContent 路由分发——推送消息携带 routerUrl
 # 可分发至任意模块(弹窗/红点/营销配置, 二进制含 ReportLiveAdData/adClickUrl 广告
@@ -72,16 +74,18 @@ DOMAIN,jpushjd.m.jd.com,REJECT
 DOMAIN,cloudpush.jd.com,REJECT
 
 [Rewrite]
-# --- 开屏广告素材断供 (2026-11-04 抓包实锤) ---
+# --- 开屏广告素材断供 (2026-11-04 抓包实锤; 2026-11-05 修复 MITM 缺失) ---
 # 京东开屏配置经推送通道下发(不经 HTTP, 三次抓包中素材 URL 在所有请求/响应体中零命中),
 # 前台启动本地决策展示; 素材是唯一网络触点:
 #   1) 全屏开屏图: mobilecms/s1125x2436_jfs/ (Image_JDAppHome sche 预取,
 #      referer download_Image_JDAppHome), 尺寸规格 s1xxx x 2xxx = 全屏竖版创意
 #   2) 开屏视频: material-video/ (实测 referer play:avplayerSH_JDMainPageViewController,
 #      主页面开屏视频广告实时下载+播放)
+# 注: Rewrite 仅对 MITM 解密的 HTTPS 生效, 故 [MITM] 必须包含对应 host
+#     (首版遗漏导致规则从未生效, 2026-11-05 修正); 规则限定精确 host 避免扩大解密范围
 # 断素材后新广告无素材可渲染; 磁盘存量素材到期(广告排期结束)后失效, 卸载重装可立即清空
-^https?:\/\/[a-z0-9]*\.?360buyimg\.com\/mobilecms\/s1\d{3}x2\d{3}_jfs\/ url reject
-^https?:\/\/[a-z0-9]*\.?360buyimg\.com\/material-video\/ url reject
+^https?:\/\/m\.360buyimg\.com\/mobilecms\/s1\d{3}x2\d{3}_jfs\/ url reject
+^https?:\/\/storage\.360buyimg\.com\/material-video\/ url reject
 # 推荐流接口直接返回空 JSON
 ^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=uniformRecommend\d* url reject-dict
 # storage.jd.com 上的推荐资源返回空 JSON
@@ -104,4 +108,6 @@ response if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|
 [MITM]
 # 低耗电: 仅保留有 Rewrite/Script 规则实际命中的域名 —— mars/policy 已 REJECT(规则先于
 # MITM 生效，无需解密)，api/routine/color/waapdg 无任何规则引用，解密纯属开销
-hostname = api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com
+# m/storage.360buyimg.com 为开屏素材断供 Rewrite 所需(2026-11-05 补, 无 MITM 则
+# Rewrite 对 HTTPS 不生效); 仅此两 host, m15 等图片域不解密
+hostname = api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, m.360buyimg.com, storage.360buyimg.com
