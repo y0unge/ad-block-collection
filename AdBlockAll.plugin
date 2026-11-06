@@ -151,14 +151,16 @@ DOMAIN,cdn.adscloud.huawei.com.cn,REJECT
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.idle\.idleadv\.(?:app\.launch\.report|xyflowin\.upload|scene\.restore)\/ url reject
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home\.pop\.interest\.upload\/ url reject
 # ==================== 京东 ====================
-# --- 京东: 开屏广告素材断供 (2026-11-04 抓包实锤; 2026-11-05 修复 MITM 缺失) ---
+# --- 京东: 开屏广告素材断供 (2026-11-04 实锤; 2026-11-06 分片轮转修复) ---
 # 开屏配置经推送通道下发(不经 HTTP,素材 URL 三次抓包全流量零命中),前台启动本地决策展示;
 # 素材是唯一网络触点: 全屏开屏图 s1125x2436_jfs (Image_JDAppHome 预取) + material-video
-# 视频开屏(主页面 avplayer 实时播放),断素材即断展示;磁盘存量素材到期后失效,重装可立即清空
-# 注: Rewrite 仅对 MITM 解密的 HTTPS 生效,[MITM] 已含 m/storage.360buyimg.com(首版遗漏
-# 导致规则从未生效, 2026-11-05 修正)
-^https?:\/\/m\.360buyimg\.com\/mobilecms\/s1\d{3}x2\d{3}_jfs\/ url reject
-^https?:\/\/storage\.360buyimg\.com\/material-video\/ url reject
+# 视频开屏(主页面 avplayer 实时播放),断素材即断展示
+# 16.1.81 IPA 实锤素材 URL 可落在任意 360buyimg 分片(App 自带正则
+# (img([1-2]\d{0,1}|30)|m).360buyimg.com/.../s%dx%d_jfs/),故规则覆盖全分片;
+# Rewrite 仅对 MITM 解密的 HTTPS 生效,[MITM] 已含 *.360buyimg.com
+# 注意: App 内更新(覆盖安装)不清沙盒缓存, 需卸载重装才能清掉磁盘存量素材
+^https?:\/\/[a-z0-9]+\.360buyimg\.com\/mobilecms\/s1\d{3}x2\d{3}_jfs\/ url reject
+^https?:\/\/[a-z0-9]+\.?360buyimg\.com\/material-video\/ url reject
 # --- 京东: 推荐流接口直接返回空 JSON ---
 ^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=uniformRecommend\d* url reject-dict
 # --- storage.jd.com 上的推荐资源返回空 JSON ---
@@ -215,7 +217,7 @@ response if ${url} ~= /^https?:\/\/[^\/]+\/(?:[a-z0-9\-]+\/)*app-api\/(?:baseinf
 
 [MITM]
 # 低耗电: 京东侧仅保留有 Rewrite/Script 规则实际命中的域名(mars/policy 已 REJECT，无需解密)，
-# m/storage.360buyimg.com 为开屏素材断供 Rewrite 所需(2026-11-05 补，无 MITM 则 Rewrite
-# 对 HTTPS 不生效)；闲鱼侧已覆盖 goofish.com 新网关(2026-10-29 抓包确认 mtop 网关迁移)
-# +旧 taobao.com 网关；传祺通配保持不变(收窄会漏广告)
-hostname = acs.m.goofish.com, g-acs.m.goofish.com, acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com, api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, m.360buyimg.com, storage.360buyimg.com, *.gacmotor.com, *.gacne.com.cn, *.gace.com.cn
+# *.360buyimg.com 为开屏素材断供 Rewrite 所需(素材可落在任意分片,16.1.81 IPA 实锤;
+# 代价是图片 CDN 解密,仅 TLS 握手开销/连接复用)；闲鱼侧已覆盖 goofish.com 新网关
+# (2026-10-29 抓包确认 mtop 网关迁移)+旧 taobao.com 网关；传祺通配保持不变(收窄会漏广告)
+hostname = acs.m.goofish.com, g-acs.m.goofish.com, acs.m.taobao.com, guide-acs.m.taobao.com, h5api.m.taobao.com, unszacs.m.taobao.com, unzbyunacs.m.taobao.com, api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, *.360buyimg.com, *.gacmotor.com, *.gacne.com.cn, *.gace.com.cn

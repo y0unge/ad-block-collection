@@ -74,18 +74,22 @@ DOMAIN,jpushjd.m.jd.com,REJECT
 DOMAIN,cloudpush.jd.com,REJECT
 
 [Rewrite]
-# --- 开屏广告素材断供 (2026-11-04 抓包实锤; 2026-11-05 修复 MITM 缺失) ---
+# --- 开屏广告素材断供 (2026-11-04 实锤; 2026-11-06 分片轮转修复) ---
 # 京东开屏配置经推送通道下发(不经 HTTP, 三次抓包中素材 URL 在所有请求/响应体中零命中),
 # 前台启动本地决策展示; 素材是唯一网络触点:
 #   1) 全屏开屏图: mobilecms/s1125x2436_jfs/ (Image_JDAppHome sche 预取,
 #      referer download_Image_JDAppHome), 尺寸规格 s1xxx x 2xxx = 全屏竖版创意
 #   2) 开屏视频: material-video/ (实测 referer play:avplayerSH_JDMainPageViewController,
 #      主页面开屏视频广告实时下载+播放)
-# 注: Rewrite 仅对 MITM 解密的 HTTPS 生效, 故 [MITM] 必须包含对应 host
-#     (首版遗漏导致规则从未生效, 2026-11-05 修正); 规则限定精确 host 避免扩大解密范围
-# 断素材后新广告无素材可渲染; 磁盘存量素材到期(广告排期结束)后失效, 卸载重装可立即清空
-^https?:\/\/m\.360buyimg\.com\/mobilecms\/s1\d{3}x2\d{3}_jfs\/ url reject
-^https?:\/\/storage\.360buyimg\.com\/material-video\/ url reject
+# 分片轮转实锤(16.1.81 IPA): App 自带图片 URL 构造正则
+#   (img([1-2]\d{0,1}|30)|m).360buyimg.com/(s\d+x\d+_jfs|jfs)/./s%dx%d_jfs/
+# 素材基础 URL 来自配置可落在任意 360buyimg 分片(m/img1-30/storage 系),尺寸前缀
+# s1125x2436 为客户端拼接——规则必须覆盖全分片(16.1.80 抓包全在 m. 纯属巧合,
+# 首版收窄至 m/storage 导致新素材轮到 imgXX 分片即漏网)
+# 注: Rewrite 仅对 MITM 解密的 HTTPS 生效, [MITM] 已含 *.360buyimg.com
+# 断素材后新广告无素材可渲染; 注意: App 内更新(覆盖安装)不清沙盒缓存, 需卸载重装
+^https?:\/\/[a-z0-9]+\.360buyimg\.com\/mobilecms\/s1\d{3}x2\d{3}_jfs\/ url reject
+^https?:\/\/[a-z0-9]+\.?360buyimg\.com\/material-video\/ url reject
 # 推荐流接口直接返回空 JSON
 ^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=uniformRecommend\d* url reject-dict
 # storage.jd.com 上的推荐资源返回空 JSON
@@ -108,6 +112,7 @@ response if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|
 [MITM]
 # 低耗电: 仅保留有 Rewrite/Script 规则实际命中的域名 —— mars/policy 已 REJECT(规则先于
 # MITM 生效，无需解密)，api/routine/color/waapdg 无任何规则引用，解密纯属开销
-# m/storage.360buyimg.com 为开屏素材断供 Rewrite 所需(2026-11-05 补, 无 MITM 则
-# Rewrite 对 HTTPS 不生效); 仅此两 host, m15 等图片域不解密
-hostname = api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, m.360buyimg.com, storage.360buyimg.com
+# *.360buyimg.com 为开屏素材断供 Rewrite 所需(Rewrite 仅对 MITM 解密的 HTTPS 生效;
+# 16.1.81 IPA 实锤素材基础 URL 可落在任意 360buyimg 分片, 故用通配; 代价是图片 CDN
+# 流量均被解密, 仅 TLS 握手开销/连接复用, 若在意耗电可收窄为 m/img1/img2/img10-30/storage 系)
+hostname = api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, *.360buyimg.com
