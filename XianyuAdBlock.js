@@ -9,6 +9,12 @@
  *   fish_home_feeds_pager_banner      信息流翻页Banner
  * 如需过滤首页顶部运营Banner,可在 AD_MARKERS 中加入 'fish_home_banner'
  *
+ * 2026-11-06: 信息流广告存在不带上述模板特征的载体 —— section 的
+ *   data.clickParam.args.cardType 直接为 "mamaAD"(阿里妈妈) 或
+ *   "homeMultiBanner"(多图运营Banner)，特征表补齐这两个 cardType
+ *   (与 kelee FleaMarket_remove_ads.lpx 2026-10-02 版的 nextfresh/
+ *   newitem.page 过滤规则交叉验证，商品列表残留广告即此载体)
+ *
  * 低耗电优化（过滤效果不变）:
  *   1. 响应原始文本不含任何广告卡片模板特征时直接放行，跳过 JSON 解析、
  *      递归清理与再序列化（无特征时 clean 必然是空操作，放行与清理等价）
@@ -22,6 +28,8 @@ const AD_MARKERS = [
   'idlefish_local_feed2_marketing',
   'detail_recommend_ad_card',
   'fish_home_feeds_pager_banner',
+  'mamaAD',
+  'homeMultiBanner',
 ];
 
 const MARKER_RE = AD_MARKERS.length

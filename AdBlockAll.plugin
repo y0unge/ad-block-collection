@@ -1,10 +1,10 @@
 #!name = 去广告合集
-#!desc = 闲鱼 + 京东 + 传祺 去广告合一插件。闲鱼：开屏广告（2026-10-30 抓包实锤 realTimeAd 下发通道，删除该节点使 App 主动跳过）、首页/同城信息流广告、详情页推荐广告、直播/小游戏广告、鱼塘弹窗、广告上报拦截（基于闲鱼 7.28.80 IPA 逆向+抓包）；京东：开屏广告(URL+POST body 双通道，含加密 body/根路径通道的 fid 无关兜底)、QUIC 旁路拦截、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、埋点上报域名屏蔽（基于京东 16.1.80 IPA 逆向+抓包）；传祺：开屏广告(广告位数据源+弹窗开关+登录页开屏视频)、悬浮/游戏/PK/签到/推荐广告、运营弹窗、社区/商城/车控 Banner、埋点域名屏蔽（基于传祺 6.2.0 IPA 逆向）。全部脚本已迁移 Loon 新语法并内置远程地址，安装即用。日志搜 [JD-FID]/[XY-Splash]/[GAC-AD] 可观测拦截命中（低耗电）。网易云音乐 VIP 解锁已拆分为独立插件 NeteaseMusicVIP，需要单独安装。
+#!desc = 闲鱼 + 京东 + 传祺 去广告合一插件。闲鱼：开屏广告（2026-10-30 抓包实锤 realTimeAd 下发通道，删除该节点使 App 主动跳过）、首页/同城信息流广告（广告模板特征 + cardType=mamaAD/homeMultiBanner 双通道过滤）、搜索结果广告卡片与热词填充、详情页推荐广告、直播/小游戏广告、鱼塘弹窗、广告上报拦截（基于闲鱼 7.28.80 IPA 逆向+抓包，信息流/搜索规则参考 kelee FleaMarket 2026-10-02 版）；京东：开屏广告(URL+POST body 双通道，含加密 body/根路径通道的 fid 无关兜底)、QUIC 旁路拦截、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、埋点上报域名屏蔽（基于京东 16.1.80 IPA 逆向+抓包）；传祺：开屏广告(广告位数据源+弹窗开关+登录页开屏视频)、悬浮/游戏/PK/签到/推荐广告、运营弹窗、社区/商城/车控 Banner、埋点域名屏蔽（基于传祺 6.2.0 IPA 逆向）。全部脚本已迁移 Loon 新语法并内置远程地址，安装即用。日志搜 [JD-FID]/[XY-Splash]/[GAC-AD] 可观测拦截命中（低耗电）。网易云音乐 VIP 解锁已拆分为独立插件 NeteaseMusicVIP，需要单独安装。
 #!author = y0unge, aoconch
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
 #!tag = 闲鱼,京东,传祺,去广告
-#!date = 2026-11-04
+#!date = 2026-11-06
 
 # ================================================================
 # 去广告合集 (闲鱼 + 京东 + 传祺) Loon 插件
@@ -17,6 +17,25 @@
 #   信息流广告 fish_home_advertise_card_d3/d4、fish_local_advertise_card_d4、
 #              idlefish_local_feed2_marketing、fish_home_feeds_pager_banner
 #   详情页广告 detail_recommend_ad_card
+#
+#   2026-11-06 信息流/搜索补强 (参考 kelee.one FleaMarket_remove_ads.lpx
+#   2026-10-02 版,只并入其"去广告类"规则,其"精简类"规则如我的页/订单页/
+#   圈子/顶部Banner白名单均不采用,保持本插件只去广告的定位):
+#     a) 信息流广告除模板特征外还存在 cardType 载体: section 的
+#        data.clickParam.args.cardType == "mamaAD"(阿里妈妈)或
+#        "homeMultiBanner" —— XianyuAdBlock.js 特征表已补齐,
+#        商品列表残留广告即此载体
+#     b) 搜索结果广告: g-acs 网关 idlemtopsearch.search 的 resultList 中
+#        bizType=="ad" 商品卡删除 + resultPrefixBar 运营条删除;
+#        search.shade 填充词 reject; search.discover 过滤 MarketHotSpot;
+#        item.search.activate 删除搜索框热词
+#     c) 详情页推荐列表 idle.item.recommend.list 整体 reject(与脚本内
+#        detail_recommend_ad_card 卡片过滤互补)
+#     d) 杂项: user.strategy.list/playboy.recommend/item.buy.feeds/
+#        local.near.by.corner.info reject; 关注页 follow.feed.list 只留
+#        cardType==2001; 社区信息流 community 只留商品卡/内容卡;
+#        新品页 newitem.page 过滤 banner/mamaAD; 同城首页 local.home
+#        过滤 cardEnum==ads; magic.home.page.list 删顶部运营列表
 #
 # 京东部分: aoconch/jd-loon-remove-recommend + 本仓库增强(16.1.80 IPA 逆向)
 #   开屏广告   start 响应清理(images/showTimesDaily/startADImage)，
@@ -150,6 +169,35 @@ DOMAIN,cdn.adscloud.huawei.com.cn,REJECT
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.(?:life\.ad\.click\.get|o2o\.ad\.(?:action|exposure|gateway)\.get)\/ url reject
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.idle\.idleadv\.(?:app\.launch\.report|xyflowin\.upload|scene\.restore)\/ url reject
 ^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home\.pop\.interest\.upload\/ url reject
+# --- 2026-11-06 信息流/搜索补强 (规则来源: kelee FleaMarket_remove_ads.lpx 2026-10-02,
+#     仅并入去广告类; 新语法规则需 Loon 3.5.1(983)+, 与本插件 [Script] 段语法一致) ---
+# 搜索结果: 删除 bizType=ad 的广告商品卡 (g-acs 网关; 闲鱼搜索"商品列表"内的广告)
+response if ${url} ~= /^https?:\/\/g-acs\.m\.goofish\.com\/gw\/mtop\.taobao\.idlemtopsearch\.search\//i then response.json.jq(".data.resultList |= map(if .data.item.main.exContent.dislikeFeedback.clickParam.args.bizType == \"ad\" then empty else . end)")
+# 搜索结果: 删除结果前缀运营条
+response if ${url} ~= /^https?:\/\/g-acs\.m\.goofish\.com\/gw\/mtop\.taobao\.idlemtopsearch\.search\//i then response.json.delete("data.resultPrefixBar")
+# 搜索填充词
+request if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlemtopsearch\.search\.shade\//i then reject_dict(200)
+# 搜索发现页: 过滤 MarketHotSpot 运营热点
+response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlemtopsearch\.search\.discover\//i then response.json.jq(".data.resultList |= map(select(.type != \"MarketHotSpot\"))")
+# 搜索框热词填充
+response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlemtopsearch\.item\.search\.activate\//i then response.json.jq(".data.cardList |= map(if has(\"cardData\") and (.cardData | has(\"hotwords\")) then .cardData |= del(.hotwords) else . end)")
+# 详情页推荐列表 (与脚本内 detail_recommend_ad_card 卡片过滤互补)
+request if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.item\.recommend\.list\//i then reject_dict(200)
+# 关注页信息流: 只留正常卡片 (cardType 2001)
+response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.fun\.follow\.feed\.list\//i then response.json.jq(".data.sections|=map(select(.cardType==2001))")
+# 社区信息流: 只留商品卡/内容卡
+response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home\.community\//i then response.json.jq(".data.feedsList |= map(select(.template.name == \"idlefish_home_new_commodity_card\" or .template.name == \"idlefish_home_new_content_card\"))")
+# 新品页: 过滤 banner/mamaAD 卡片
+response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.home\.newitem\.page\//i then response.json.jq(".data.sections |= map(select(.data.clickParam.args.cardType as $ct | $ct != \"banner\" and $ct != \"mamaAD\"))")
+# 同城首页信息流: 过滤 cardEnum=ads 的广告卡片
+response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.local\.home\//i then response.json.jq(".data.sections |= map(select((.template.cardEnum != \"ads\") and (.cardType == \"common\")))")
+# 魔法首页: 删顶部运营列表
+response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idlehome\.magic\.home\.page\.list\//i then response.json.delete("data.topList")
+# 广告策略配置/推荐流杂项
+request if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.user\.strategy\.list\//i then reject_dict(200)
+request if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.playboy\.recommend\//i then reject_dict(200)
+request if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.item\.buy\.feeds\//i then reject_dict(200)
+request if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.local\.near\.by\.corner\.info\//i then reject_dict(200)
 # ==================== 京东 ====================
 # --- 京东: 开屏广告素材断供 (2026-11-04 实锤; 2026-11-06 分片轮转修复) ---
 # 开屏配置经推送通道下发(不经 HTTP,素材 URL 三次抓包全流量零命中),前台启动本地决策展示;
