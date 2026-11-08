@@ -3,7 +3,7 @@
 #!author = y0unge
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
-#!date = 2026-10-30
+#!date = 2026-11-08
 
 # ================================================================
 # 闲鱼 (com.taobao.fleamarket) 去广告 Loon 插件
@@ -69,6 +69,20 @@ response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.home\.
 response if ${url} ~= /^https?:\/\/[^\/]+\/[a-z0-9\/]*mtop\.taobao\.idle\.(?:item\.detail|detail\.preget|awesome\.detail(?:\.unit)?)\//i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/XianyuAdBlock.js") with tag="闲鱼_详情页去广告", timeout=20, requires_body=true
 
 [Rule]
+# --- 淘宝系 QUIC 拦截 (2026-11-08) ---
+# a) 防绕过 MITM: 闲鱼 mtop 网关(acs.m.goofish.com/g-acs.m.goofish.com 与
+#    旧 *.m.taobao.com)均在 [MITM] 列表内, 走 QUIC 时不经解密, 去广告脚本与
+#    Rewrite 全部失效 (与京东 Cronet 同因)
+# b) UDP 故障网络止血: 淘宝/闲鱼图片 CDN(heic.alicdn.com/heic.tbcdn.cn/
+#    gw.alicdn.com)与网关大量走 QUIC, UDP 出口故障的 WiFi 下包发不出去只能
+#    等 App 自身超时才回落 TCP(实测"闪购部分图片卡几秒"主因); REJECT 使 App
+#    立即回退 TCP, UDP 正常网络仅损失 H3 收益(图片 H2 足够)
+AND, ((DOMAIN-SUFFIX, taobao.com), (PROTOCOL, QUIC)), REJECT
+AND, ((DOMAIN-SUFFIX, goofish.com), (PROTOCOL, QUIC)), REJECT
+AND, ((DOMAIN-SUFFIX, alicdn.com), (PROTOCOL, QUIC)), REJECT
+AND, ((DOMAIN-SUFFIX, tbcdn.cn), (PROTOCOL, QUIC)), REJECT
+AND, ((DOMAIN-SUFFIX, taobaocdn.com), (PROTOCOL, QUIC)), REJECT
+AND, ((DOMAIN-SUFFIX, alibabausercontent.com), (PROTOCOL, QUIC)), REJECT
 # 阿里妈妈 Tanx 广告交易 (click.tanx.com / ifs.tanx.com / ef-dongfeng.tanx.com)
 DOMAIN-SUFFIX,tanx.com,REJECT
 # 腾讯广点通

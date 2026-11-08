@@ -1,10 +1,10 @@
 #!name = 去广告合集
-#!desc = 闲鱼 + 京东 + 传祺 去广告合一插件。闲鱼：开屏广告（2026-10-30 抓包实锤 realTimeAd 下发通道，删除该节点使 App 主动跳过）、首页/同城信息流广告（广告模板特征 + cardType=mamaAD/homeMultiBanner 双通道过滤）、搜索结果广告卡片与热词填充、详情页推荐广告、直播/小游戏广告、鱼塘弹窗、广告上报拦截（基于闲鱼 7.28.80 IPA 逆向+抓包，信息流/搜索规则参考 kelee FleaMarket 2026-10-02 版）；京东：开屏广告(URL+POST body 双通道，含加密 body/根路径通道的 fid 无关兜底)、QUIC 旁路拦截、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、埋点上报域名屏蔽（基于京东 16.1.80 IPA 逆向+抓包）；传祺：开屏广告(广告位数据源+弹窗开关+登录页开屏视频)、悬浮/游戏/PK/签到/推荐广告、运营弹窗、社区/商城/车控 Banner、埋点域名屏蔽（基于传祺 6.2.0 IPA 逆向）。全部脚本已迁移 Loon 新语法并内置远程地址，安装即用。日志搜 [JD-FID]/[XY-Splash]/[GAC-AD] 可观测拦截命中（低耗电）。网易云音乐 VIP 解锁已拆分为独立插件 NeteaseMusicVIP，需要单独安装。
+#!desc = 闲鱼 + 京东 + 传祺 去广告合一插件。闲鱼：开屏广告（2026-10-30 抓包实锤 realTimeAd 下发通道，删除该节点使 App 主动跳过）、首页/同城信息流广告（广告模板特征 + cardType=mamaAD/homeMultiBanner 双通道过滤）、搜索结果广告卡片与热词填充、详情页推荐广告、直播/小游戏广告、鱼塘弹窗、广告上报拦截、淘宝系 QUIC 拦截（taobao/goofish/alicdn/tbcdn 等，防 QUIC 绕过 MITM，UDP 故障网络下避免图片等 QUIC 超时才回落 TCP）（基于闲鱼 7.28.80 IPA 逆向+抓包，信息流/搜索规则参考 kelee FleaMarket 2026-10-02 版）；京东：开屏广告(URL+POST body 双通道，含加密 body/根路径通道的 fid 无关兜底)、QUIC 旁路拦截、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、埋点上报域名屏蔽（基于京东 16.1.80 IPA 逆向+抓包）；传祺：开屏广告(广告位数据源+弹窗开关+登录页开屏视频)、悬浮/游戏/PK/签到/推荐广告、运营弹窗、社区/商城/车控 Banner、埋点域名屏蔽（基于传祺 6.2.0 IPA 逆向）。全部脚本已迁移 Loon 新语法并内置远程地址，安装即用。日志搜 [JD-FID]/[XY-Splash]/[GAC-AD] 可观测拦截命中（低耗电）。网易云音乐 VIP 解锁已拆分为独立插件 NeteaseMusicVIP，需要单独安装。
 #!author = y0unge, aoconch
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
 #!tag = 闲鱼,京东,传祺,去广告
-#!date = 2026-11-06
+#!date = 2026-11-08
 
 # ================================================================
 # 去广告合集 (闲鱼 + 京东 + 传祺) Loon 插件
@@ -41,7 +41,12 @@
 #   开屏广告   start 响应清理(images/showTimesDaily/startADImage)，
 #              覆盖 POST body 传参通道(请求侧脚本读取 body 拦截)；
 #              加密 body/根路径通道下 fid 不可见时按字段特征递归兜底清理
-#   QUIC旁路   京东 Cronet 可走 QUIC 绕过 MITM，已拦截强制回退 TCP
+#   QUIC旁路   京东 Cronet 可走 QUIC 绕过 MITM，已拦截强制回退 TCP；
+#              2026-11-08 扩展: +360buyimg.com(素材分片域已入 MITM)与淘宝系
+#              taobao.com/goofish.com/alicdn.com/tbcdn.cn/taobaocdn.com/
+#              alibabausercontent.com —— 一并防 QUIC 绕过 MITM, 并避免
+#              UDP 故障网络下 App 等 QUIC 超时才回落 TCP(实测该环境下
+#              淘宝闪购"部分图片卡几秒"的主因, 蜂窝网络正常即为此因)
 #   推荐楼层   楼层 mId/标题匹配递归清理 (uniformRecommend 等接口)
 #   埋点上报   mars.jd.com 等 18 个上报域名 REJECT
 #
@@ -65,9 +70,27 @@
 
 [Rule]
 # --- 京东: 屏蔽 QUIC/UDP，强制走 TCP 以便 MITM 解密 ---
+# 2026-11-08 补 360buyimg.com: 素材分片已通配进 [MITM](*.360buyimg.com),
+# QUIC 会绕过解密使开屏素材断供规则失效; 亦避免 UDP 故障网络下图片 CDN 等待超时
 AND, ((DOMAIN, api.m.jd.com), (PROTOCOL, QUIC)), REJECT
 AND, ((DOMAIN-SUFFIX, jd.com), (PROTOCOL, QUIC)), REJECT
 AND, ((DOMAIN, api.m.jd.com), (PROTOCOL, UDP)), REJECT
+AND, ((DOMAIN-SUFFIX, 360buyimg.com), (PROTOCOL, QUIC)), REJECT
+# --- 淘宝系: QUIC 拦截 (2026-11-08) ---
+# a) 防绕过 MITM: acs.m.taobao.com/goofish.com 等网关在 [MITM] 列表内,
+#    App 走 QUIC 时不经解密, 响应篡改脚本与 Rewrite 全部失效 (与京东同因)
+# b) UDP 故障网络止血: 实测某 WiFi 环境 UDP 出口全断 (Loon 日志 LNUDPTransport
+#    sendErrors 全灭 + 5 天 2068 次 DNS over UDP 超时), 淘宝/闲鱼图片
+#    (heic.alicdn.com/heic.tbcdn.cn/gw.alicdn.com)与 mtop 网关
+#    (acs.m.taobao.com/msgacs/guide-acs 等)大量走 QUIC, 包发不出去只能等 App
+#    自身超时才回落 TCP, 表现为闪购信息流"部分图片卡几秒"(蜂窝正常即为此因);
+#    REJECT 使 App 立即回退 TCP, UDP 正常网络仅损失 H3 收益(图片 H2 足够)
+AND, ((DOMAIN-SUFFIX, taobao.com), (PROTOCOL, QUIC)), REJECT
+AND, ((DOMAIN-SUFFIX, goofish.com), (PROTOCOL, QUIC)), REJECT
+AND, ((DOMAIN-SUFFIX, alicdn.com), (PROTOCOL, QUIC)), REJECT
+AND, ((DOMAIN-SUFFIX, tbcdn.cn), (PROTOCOL, QUIC)), REJECT
+AND, ((DOMAIN-SUFFIX, taobaocdn.com), (PROTOCOL, QUIC)), REJECT
+AND, ((DOMAIN-SUFFIX, alibabausercontent.com), (PROTOCOL, QUIC)), REJECT
 # --- 京东: 埋点/统计/监控上报域名 (基于抓包+IPA逆向) ---
 DOMAIN,mars.jd.com,REJECT
 DOMAIN,perf.m.jd.com,REJECT

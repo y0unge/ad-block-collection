@@ -49,7 +49,7 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**、
 - **开屏素材断供（2026-11-04 三次抓包实锤；2026-11-06 分片轮转修复）**：连续三份漏网 HAR（172/173/176）做全流量穷举关联（素材 URL 的哈希/文件名/路径碎片 × 所有请求/响应体 × gzip/deflate/zlib 解压 + URL 解码）**零命中**——开屏配置经推送通道下发（jpush/APNs，不经 HTTP 代理），前台启动纯本地决策；素材下载是**唯一网络触点**：全屏开屏图 `mobilecms/s1125x2436_jfs/`（`Image_JDAppHome` sche 预取，referer `download_Image_JDAppHome`）与 `material-video/` 开屏视频（实测 referer `play:avplayerSH_JDMainPageViewController`，主页面控制器实时下载 2.8MB mp4 后播放）。两条 Rewrite REJECT 断素材后新广告无素材可渲染。**版本演进**：首版遗漏 `[MITM]` 域名（Rewrite 仅对 MITM 解密的 HTTPS 生效）导致规则从未触发，2026-11-05 补入后仍漏网——**16.1.81 IPA 逆向实锤素材分片轮转**：App 自带图片 URL 构造正则 `(img([1-2]\d{0,1}|30)|m).360buyimg.com/(s\d+x\d+_jfs|jfs)/.../s%dx%d_jfs/`，素材基础 URL 来自配置可落在**任意 360buyimg 分片**（m/img1/img2/img10-30/storage 系），尺寸前缀 `s1125x2436` 为客户端拼接；16.1.80 抓包素材全在 `m.` 纯属巧合，收窄 host 即漏网。现规则覆盖全分片、`[MITM]` 含 `*.360buyimg.com`（代价：图片 CDN 流量均解密，仅 TLS 握手开销/连接复用，在意耗电可收窄为分片枚举）。**存量缓存注意**：App 内"更新"（覆盖安装）不清沙盒缓存，需**卸载重装**才能清掉磁盘素材；卸载后新素材被断供，广告无从渲染
 - **根路径直传通道（2026-10-30 抓包发现）**：京东部分请求走 `api.m.jd.com/`（光秃根路径，body 传 fid，如 `wsgw_getinfo`/`getTokenC`），原先脚本正则 `\/(client\.action|api)` 对其无效，已改为 `\/(?:client\.action|api)?(?:$|[\/?#])` 覆盖根路径
 - **推送长连接拦截（2026-11-04 补充，实验性）**：`JDBPushServiceModule` 长连接（`jpushsc.m.jd.com`/`jpushjd.m.jd.com`/`cloudpush.jd.com`，二进制逆向）承载 `dispatchContent` 路由分发——推送消息携带 `routerUrl` 可分发至任意模块（弹窗/红点/营销配置，含 `ReportLiveAdData`/`adClickUrl` 广告数据通道），为开屏配置"不经 HTTP"的疑似载体。拦截后真通知不受影响（iOS 被杀进程时本就只有 APNs，活跃期双通道并行），红点/角标实时性微降；SDK 有 `exceeded maximum retry attempts` 重试上限 + `enableTCPToHTTP` 回退，无重试风暴风险（Loon REJECT 为毫秒级 RST，无超时挂起；比长连接心跳保活反而省电）。观测提示：若 Loon 日志出现 jpushsc 高频 reject 连发（重试风暴迹象）可删除对应行，素材断供为主保险
-- **QUIC 旁路拦截**：京东 Cronet 网络栈可走 QUIC（`quic-api.m.jd.com`，UDP443）完全绕过 MITM，导致开屏偶发漏网；拦截后强制回退 TCP
+- **QUIC 旁路拦截**：京东 Cronet 网络栈可走 QUIC（`quic-api.m.jd.com`，UDP443）完全绕过 MITM，导致开屏偶发漏网；拦截后强制回退 TCP。2026-11-08 补 `*.360buyimg.com`：素材分片域已通配进 `[MITM]`（素材断供规则依赖解密），QUIC 同样绕过解密；亦避免 UDP 故障网络下图片 CDN 等待超时（见下节）
 - **POST body 通道拦截**：京东新网络栈（JDNetworkBaseAF）将 functionId 序列化进 POST body（URL 为光秃的 `/client.action?`），URL 匹配对其无效；请求侧脚本读取 body 拦截纯广告接口（`queryPagePopWindow`/`babelGetGuideTips`/`secondFloor`/`searchBoxWord`/`uniformRecommend` 等）
 - **API 网关域名全覆盖**（UnitRouter 机制）：`api`/`api-q`/`squnit-api`/`quic-api.m.jd.com`、`api-ai`/`squnit-api-ai.jd.com`
 - **推荐流**：`uniformRecommend` 直接返回空包
@@ -126,6 +126,13 @@ Loon 去广告插件合集，包含**闲鱼**、**京东**、**广汽传祺**、
 - **有意不匹配 mtop 网关**：Loon 同一响应只执行第一条命中的 Response Script，闲鱼插件的 mtop 正则不限 host，宽网关正则会与其互相抢占；若实测发现商品流走其他网关，用 Loon 抓包确认后替换插件内正则与 `[MITM]` 域名（数据走长连接时无法捕获）
 - `mobilegw.alipay.com` 为支付宝通用 RPC 网关，若支付宝出现页面/支付异常，先关闭本插件
 - 观测：Loon 日志搜 `[商品监控]`（需 Loon 3.5.1(983)+ 新语法）
+
+## 淘宝系 QUIC 拦截（2026-11-08）
+
+对 `taobao.com` / `goofish.com` / `alicdn.com` / `tbcdn.cn` / `taobaocdn.com` / `alibabausercontent.com` 的 QUIC（UDP443）全部 REJECT（AdBlockAll 合集与 XianyuAdBlock 单项插件同步），两个理由：
+
+- **防 QUIC 绕过 MITM**：闲鱼 mtop 网关（`acs.m.goofish.com`/`g-acs.m.goofish.com`，旧 `*.m.taobao.com` 保留兼容）均在 `[MITM]` 列表内，App 走 QUIC 时不经解密，响应篡改脚本与 Rewrite 全部失效——与京东 Cronet 同因
+- **UDP 故障网络止血（实测定位）**：某 WiFi 环境 UDP 出口全断（Loon 日志 `LNUDPTransport` sendErrors 全灭、5 天 2068 次 DNS over UDP 超时），而淘宝/闲鱼的图片 CDN（`heic.alicdn.com`/`heic.tbcdn.cn`/`gw.alicdn.com`）与 mtop 网关（`acs.m.taobao.com`/`msgacs`/`guide-acs` 等）大量走 QUIC——包发不出去只能等 App 自身超时才回落 TCP，表现为淘宝闪购信息流「部分图片卡几秒」（同机蜂窝网络正常，即为此因）。REJECT 让 App 立即回退 TCP；UDP 正常的网络下仅损失 H3 收益（图片走 H2/TCP 足够），无功能影响
 
 ## 低耗电优化
 
