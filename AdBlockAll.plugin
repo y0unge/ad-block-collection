@@ -4,7 +4,7 @@
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
 #!tag = 闲鱼,京东,传祺,去广告
-#!date = 2026-11-08
+#!date = 2026-11-10
 
 # ================================================================
 # 去广告合集 (闲鱼 + 京东 + 传祺) Loon 插件
@@ -69,13 +69,14 @@
 # ================================================================
 
 [Rule]
-# --- 京东: 屏蔽 QUIC/UDP，强制走 TCP 以便 MITM 解密 ---
-# 2026-11-08 补 360buyimg.com: 素材分片已通配进 [MITM](*.360buyimg.com),
-# QUIC 会绕过解密使开屏素材断供规则失效; 亦避免 UDP 故障网络下图片 CDN 等待超时
-AND, ((DOMAIN, api.m.jd.com), (PROTOCOL, QUIC)), REJECT
-AND, ((DOMAIN-SUFFIX, jd.com), (PROTOCOL, QUIC)), REJECT
-AND, ((DOMAIN, api.m.jd.com), (PROTOCOL, UDP)), REJECT
-AND, ((DOMAIN-SUFFIX, 360buyimg.com), (PROTOCOL, QUIC)), REJECT
+# --- 京东: QUIC 旁路拦截(收窄至专用网关, 2026-11-10 领券问题修复) ---
+# 原 api.m.jd.com QUIC/UDP + jd.com QUIC + 360buyimg.com QUIC 四条全量拦截已移除:
+# WKWebView 优先尝试 HTTP/3 被全量 REJECT 后回退 TCP 存在黑洞延迟, 领券 H5
+# (coupon.m.jd.com/coupons/show.action) API timeout=5s retryCount=0(主 bundle 逆向),
+# 超时先到导致券列表空(竞态, 时好时坏)——控制实验与无 QUIC 测试变体双重实锤。
+# 原生 Cronet 的 QUIC 旁路走专用网关 quic-api.m.jd.com(UDP443), 仅拦它即保住反旁路
+AND, ((DOMAIN, quic-api.m.jd.com), (PROTOCOL, QUIC)), REJECT
+AND, ((DOMAIN, quic-api.m.jd.com), (PROTOCOL, UDP)), REJECT
 # --- 淘宝系: QUIC 拦截 (2026-11-08) ---
 # a) 防绕过 MITM: acs.m.taobao.com/goofish.com 等网关在 [MITM] 列表内,
 #    App 走 QUIC 时不经解密, 响应篡改脚本与 Rewrite 全部失效 (与京东同因)

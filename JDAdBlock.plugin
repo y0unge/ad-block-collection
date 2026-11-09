@@ -1,18 +1,19 @@
 #!name = 京东去广告
-#!desc = 基于 16.1.80 脱壳 IPA 逆向 + 抓包分析：开屏广告素材断供（配置经推送通道下发不经 HTTP，素材是唯一网络触点：s1125x2436 全屏图 + material-video 视频直接 REJECT）+ 推送长连接拦截（dispatchContent 营销/配置分发通道，真通知走 APNs 兜底）、开屏响应字段清理（start/startADImage + 天幕 TN 体系字段 + fid 无关兜底）、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、纯广告接口(URL+POST body 双通道)、QUIC 旁路拦截(jd.com + 360buyimg.com)、埋点上报域名屏蔽。命中拦截/清理时记录 [JD-FID] 日志（低耗电）。
+#!desc = 基于 16.1.80 脱壳 IPA 逆向 + 抓包分析：开屏广告素材断供（配置经推送通道下发不经 HTTP，素材是唯一网络触点：s1125x2436 全屏图 + material-video 视频直接 REJECT）+ 推送长连接拦截（dispatchContent 营销/配置分发通道，真通知走 APNs 兜底）、开屏响应字段清理（start/startADImage + 天幕 TN 体系字段 + fid 无关兜底）、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、纯广告接口(URL+POST body 双通道)、QUIC 旁路拦截（收窄至 quic-api.m.jd.com 专用网关——全量 QUIC/UDP 拦截会黑洞 WKWebView HTTP/3 回退，致 H5 领券页 5s 超时空列表）、埋点上报域名屏蔽。命中拦截/清理时记录 [JD-FID] 日志（低耗电）。
 #!author = aoconch, y0unge
 #!homepage = https://github.com/y0unge/ad-block-collection
 #!category = 去广告
 #!tag = 京东,去广告,去推荐
-#!date = 2026-11-08
+#!date = 2026-11-10
 
 # ================================================================
 # 京东 (com.360buy.jdmobile) 去广告 Loon 插件
 # 
 # 基于 aoconch/jd-loon-remove-recommend 与本仓库增强:
-#   1. QUIC 拦截: 京东 Cronet 网络栈可走 QUIC(quic-api.m.jd.com, UDP443)
-#      完全绕过 MITM 导致开屏素材偶发漏网，拦截后强制回退 TCP;
-#      2026-11-08 补 360buyimg.com(素材分片域已通配进 [MITM], QUIC 同因绕过)
+#   1. QUIC 旁路拦截(收窄): 京东 Cronet 网络栈走专用网关 quic-api.m.jd.com(UDP443)
+#      QUIC 完全绕过 MITM 导致开屏素材偶发漏网，仅拦该网关强制回退 TCP;
+#      2026-11-10 前的全量 QUIC/UDP 拦截(api/jd.com/360buyimg)已移除——实测会
+#      黑洞 WKWebView 的 HTTP/3 回退,导致 H5 页面(领券等) 5s 超时零重试下空列表
 #   2. POST body 通道: 京东新网络栈把 functionId 序列化进 POST body
 #      (URL 为光秃的 /client.action?)，URL 匹配对其无效，
 #      请求侧脚本读取 body 拦截纯广告接口 + 记录 [JD-FID] 日志
@@ -35,13 +36,15 @@
 # ================================================================
 
 [Rule]
-# 屏蔽京东 QUIC/UDP，强制走 TCP 以便 MITM 解密
-# 2026-11-08 补 360buyimg.com: 素材分片已通配进 [MITM](*.360buyimg.com),
-# QUIC 会绕过解密使开屏素材断供规则失效; 亦避免 UDP 故障网络下图片 CDN 等待超时
-AND, ((DOMAIN, api.m.jd.com), (PROTOCOL, QUIC)), REJECT
-AND, ((DOMAIN-SUFFIX, jd.com), (PROTOCOL, QUIC)), REJECT
-AND, ((DOMAIN, api.m.jd.com), (PROTOCOL, UDP)), REJECT
-AND, ((DOMAIN-SUFFIX, 360buyimg.com), (PROTOCOL, QUIC)), REJECT
+# QUIC 旁路拦截——收窄至专用网关 quic-api.m.jd.com(2026-11-10 领券问题修复)
+# 原 api.m.jd.com QUIC/UDP + jd.com QUIC + 360buyimg.com QUIC 四条已移除:
+#   WKWebView 优先尝试 HTTP/3 被全量 REJECT 后回退 TCP 存在黑洞延迟, 领券 H5
+#   (coupon.m.jd.com/coupons/show.action) API 配置 timeout=5s retryCount=0
+#   (主 bundle 逆向), 超时先到导致券列表空——控制实验(关插件可领)与无 QUIC
+#   测试变体双重实锤。原生 Cronet 的 QUIC 旁路走专用网关 quic-api.m.jd.com
+#   (UDP443), 仅拦它即保住反旁路, 不再影响 WebView HTTP/3
+AND, ((DOMAIN, quic-api.m.jd.com), (PROTOCOL, QUIC)), REJECT
+AND, ((DOMAIN, quic-api.m.jd.com), (PROTOCOL, UDP)), REJECT
 # 埋点/统计/监控上报域名 (基于抓包+IPA逆向)
 DOMAIN,mars.jd.com,REJECT
 DOMAIN,perf.m.jd.com,REJECT
