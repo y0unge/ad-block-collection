@@ -68,6 +68,16 @@
     console.warn("[JD-FID] " + ($request.method || "GET") + " fid=" + (fid || "(none)") + " url=" + url.slice(0, 100));
   }
 
+  // 功能性接口白名单(2026-11-09 领券问题): readCustomSurfaceList 为自定义浮层/皮肤系统
+  // (首页皮肤/导航样式/浮层, 领券动作亦经此通道, templateArr 区分模板)——纯 UI 功能无
+  // 广告价值; 其浮层/banner 楼层存在被 BLOCK_MID(banner/bannerFloor)与 TITLE_RE
+  // (猜你喜欢等)误伤的风险, 直接放行不做任何清理。实测启动场景(TNDongDong 模板)
+  // 响应本就 pass-through, 白名单对非领券场景零影响。
+  if (fid && /^readCustomSurfaceList$/i.test(fid)) {
+    $done({});
+    return;
+  }
+
   const TITLE_RE =
     /为你推荐|潮流好货|推荐榜单|快点来看看|你可能还喜欢|猜你喜欢|AI推荐|好物推荐|热门推荐|精选推荐|看了又看|相似好物/;
 
