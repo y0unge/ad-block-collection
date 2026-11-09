@@ -1,0 +1,124 @@
+#!name = 京东去广告-测试无QUIC拦截(诊断用)
+#!desc = [诊断变体: 定位领券H5空列表问题, 验证后请卸载并换回正式版] 仅移除全部 QUIC/UDP REJECT 规则(api.m.jd.com QUIC/UDP、jd.com QUIC、360buyimg.com QUIC), 其余与正式版完全一致(MITM/脚本/白名单/其余规则)。若领券恢复则确认 QUIC/UDP 拦截对 WKWebView HTTP/3 的回退黑洞是元凶(领券页 API timeout=5s retry=0)。
+#!orig_desc = 基于 16.1.80 脱壳 IPA 逆向 + 抓包分析：开屏广告素材断供（配置经推送通道下发不经 HTTP，素材是唯一网络触点：s1125x2436 全屏图 + material-video 视频直接 REJECT）+ 推送长连接拦截（dispatchContent 营销/配置分发通道，真通知走 APNs 兜底）、开屏响应字段清理（start/startADImage + 天幕 TN 体系字段 + fid 无关兜底）、首页/购物车/订单/个人页推荐楼层与弹窗、uniformRecommend 推荐流、纯广告接口(URL+POST body 双通道)、QUIC 旁路拦截(jd.com + 360buyimg.com)、埋点上报域名屏蔽。命中拦截/清理时记录 [JD-FID] 日志（低耗电）。
+#!author = aoconch, y0unge
+#!homepage = https://github.com/y0unge/ad-block-collection
+#!category = 去广告
+#!tag = 京东,去广告,去推荐
+#!date = 2026-11-10
+
+# ================================================================
+# 京东 (com.360buy.jdmobile) 去广告 Loon 插件
+# 
+# 基于 aoconch/jd-loon-remove-recommend 与本仓库增强:
+#   1. QUIC 拦截: 京东 Cronet 网络栈可走 QUIC(quic-api.m.jd.com, UDP443)
+#      完全绕过 MITM 导致开屏素材偶发漏网，拦截后强制回退 TCP;
+#      2026-11-08 补 360buyimg.com(素材分片域已通配进 [MITM], QUIC 同因绕过)
+#   2. POST body 通道: 京东新网络栈把 functionId 序列化进 POST body
+#      (URL 为光秃的 /client.action?)，URL 匹配对其无效，
+#      请求侧脚本读取 body 拦截纯广告接口 + 记录 [JD-FID] 日志
+#   3. API 网关域名全覆盖(UnitRouter): api/api-q/squnit-api/quic-api.m.jd.com,
+#      api-ai/squnit-api-ai.jd.com；2026-10-30 抓包新增根路径通道
+#      (api.m.jd.com/ 直传 body fid，如 wsgw_getinfo)，脚本正则已覆盖
+#   4. startADImage 清理(16.1.80 IPA 逆向发现的开屏广告单图字段)
+#   5. 开屏字段 fid 无关兜底(2026-10-30): 加密 body 通道(uuid=...&body=<加密>
+#      &appid=mpaas2)下 fid 可能不可见，start 分支不触发；scrubSplashFields
+#      按 showTimesDaily/startADImage 等字段特征递归清理(含嵌套层)，与 fid 无关
+#   6. 埋点/统计上报域名 REJECT(抓包 717 条请求中约 340 条)
+#   7. Script 使用 Loon 3.5.1(983)+ 新语法(旧语法 http-request 部分环境不触发)
+#   8. 低耗电优化: 移除每请求 jddebug.com 观测 DNS 查询、[JD-FID] 仅命中时记录、
+#      无特征响应预检跳过、uniformRecommend 提前返回、MITM 收窄至有规则命中的域名
+# 使用说明:
+#   1. Loon 安装并信任 CA 证书，开启 MITM 总开关
+#   2. 安装本插件即可，脚本经远程地址自动加载
+#   3. 观测: Loon 日志搜索 [JD-FID] 可见拦截/清理命中流水
+#      (需全量流水排查时把脚本内 DEBUG 置为 true)
+# ================================================================
+
+[Rule]
+# [TEST-VARIANT] 本测试变体已移除全部 QUIC/UDP 拦截——定位 WKWebView HTTP/3 回退黑洞假设
+# 以下为原注释: 屏蔽京东 QUIC/UDP，强制走 TCP 以便 MITM 解密
+# 2026-11-08 补 360buyimg.com: 素材分片已通配进 [MITM](*.360buyimg.com),
+# QUIC 会绕过解密使开屏素材断供规则失效; 亦避免 UDP 故障网络下图片 CDN 等待超时
+# [TEST-VARIANT 已移除] AND, ((DOMAIN, api.m.jd.com), (PROTOCOL, QUIC)), REJECT
+# [TEST-VARIANT 已移除] AND, ((DOMAIN-SUFFIX, jd.com), (PROTOCOL, QUIC)), REJECT
+# [TEST-VARIANT 已移除] AND, ((DOMAIN, api.m.jd.com), (PROTOCOL, UDP)), REJECT
+# [TEST-VARIANT 已移除] AND, ((DOMAIN-SUFFIX, 360buyimg.com), (PROTOCOL, QUIC)), REJECT
+# 埋点/统计/监控上报域名 (基于抓包+IPA逆向)
+DOMAIN,mars.jd.com,REJECT
+DOMAIN,perf.m.jd.com,REJECT
+DOMAIN,h5speed.m.jd.com,REJECT
+DOMAIN,sh.jd.com,REJECT
+DOMAIN,anti-sdk-report.m.jd.com,REJECT
+DOMAIN,uranus.jd.com,REJECT
+DOMAIN,mllog.jd.com,REJECT
+DOMAIN,ex.m.jd.com,REJECT
+DOMAIN,cltm.jd.com,REJECT
+DOMAIN,ccflbs.m.jd.com,REJECT
+DOMAIN,dsap.jd.com,REJECT
+DOMAIN,jra.jd.com,REJECT
+DOMAIN,sdkfp.jd.com,REJECT
+DOMAIN,device-security-url.jd.com,REJECT
+DOMAIN,policy.jd.com,REJECT
+# 注: jddebug.com 不做 REJECT —— 京东 App 自身会探测其随机子域(反劫持检测)；
+# 脚本已不再使用该域名做观测日志(低耗电优化，移除每请求必超时 DNS 查询)
+# 广告
+DOMAIN,im-x.jd.com,REJECT
+# 注: imgcps.jd.com 规则已移除(2026-11-05)——历史流量实测走 imgcps1/imgcps2.jd.com
+# 子域, 精确 DOMAIN 匹配从未命中(死规则, 移除零行为变化); 且 imgcps 为 CPS 导购
+# 图片服务, 疑似承载优惠券卡片图, 保留有误杀领券页风险
+# 推送长连接: 断配置/营销下发通道 (实验性补充, 可按需删除)
+# JDBPushServiceModule 长连接承载 dispatchContent 路由分发——推送消息携带 routerUrl
+# 可分发至任意模块(弹窗/红点/营销配置, 二进制含 ReportLiveAdData/adClickUrl 广告
+# 数据通道), 为开屏配置"不经 HTTP"的疑似载体;拦截后:
+#   - 真通知不受影响(被杀进程时本就只有 APNs, 活跃期双通道并行)
+#   - 红点/角标实时性微降; SDK 有 exceeded maximum retry attempts 上限 +
+#     enableTCPToHTTP 回退, 无重试风暴风险(毫秒级 RST, 无超时挂起)
+#   - 观测: 若 Loon 日志出现 jpushsc 高频 reject 连发再撤;素材断供为主保险
+DOMAIN,jpushsc.m.jd.com,REJECT
+DOMAIN,jpushjd.m.jd.com,REJECT
+DOMAIN,cloudpush.jd.com,REJECT
+
+[Rewrite]
+# --- 开屏广告素材断供 (2026-11-04 实锤; 2026-11-06 分片轮转修复) ---
+# 京东开屏配置经推送通道下发(不经 HTTP, 三次抓包中素材 URL 在所有请求/响应体中零命中),
+# 前台启动本地决策展示; 素材是唯一网络触点:
+#   1) 全屏开屏图: mobilecms/s1125x2436_jfs/ (Image_JDAppHome sche 预取,
+#      referer download_Image_JDAppHome), 尺寸规格 s1xxx x 2xxx = 全屏竖版创意
+#   2) 开屏视频: material-video/ (实测 referer play:avplayerSH_JDMainPageViewController,
+#      主页面开屏视频广告实时下载+播放)
+# 分片轮转实锤(16.1.81 IPA): App 自带图片 URL 构造正则
+#   (img([1-2]\d{0,1}|30)|m).360buyimg.com/(s\d+x\d+_jfs|jfs)/./s%dx%d_jfs/
+# 素材基础 URL 来自配置可落在任意 360buyimg 分片(m/img1-30/storage 系),尺寸前缀
+# s1125x2436 为客户端拼接——规则必须覆盖全分片(16.1.80 抓包全在 m. 纯属巧合,
+# 首版收窄至 m/storage 导致新素材轮到 imgXX 分片即漏网)
+# 注: Rewrite 仅对 MITM 解密的 HTTPS 生效, [MITM] 已含 *.360buyimg.com
+# 断素材后新广告无素材可渲染; 注意: App 内更新(覆盖安装)不清沙盒缓存, 需卸载重装
+^https?:\/\/[a-z0-9]+\.360buyimg\.com\/mobilecms\/s1\d{3}x2\d{3}_jfs\/ url reject
+^https?:\/\/[a-z0-9]+\.?360buyimg\.com\/material-video\/ url reject
+# 推荐流接口直接返回空 JSON
+^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=uniformRecommend\d* url reject-dict
+# storage.jd.com 上的推荐资源返回空 JSON
+^https:\/\/storage\.jd\.com\/mpaas2-public\/product\/[^\/]+\/recommend_jdur url reject-dict
+# 纯广告接口 (GET/OPTIONS 场景，URL 带 functionId)
+^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=queryPagePopWindow - reject
+^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=babelGetGuideTips - reject
+^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=secondFloor - reject
+
+[Script]
+# 请求侧: 读取 POST body 中的 functionId(京东新网络栈将 fid 序列化进 body，
+# 含加密 body 通道——fid 为明文兄弟参数；URL 匹配对其无效)，
+# 纯广告接口本地返回空 JSON，命中拦截时记录 [JD-FID] 日志
+# URL 正则覆盖: /client.action、/api、根路径 / 直传通道(2026-10-30 抓包发现)
+request if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(?:client\.action|api)?(?:$|[\/?#])/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/jd_ad_request.js") with tag="京东_广告请求拦截", timeout=20, requires_body=true
+# 响应侧: aoconch 原版逻辑 + 本仓库增强(startADImage 清理、双 $done 修复、[JD-FID] 命中日志、
+# 开屏字段 fid 无关递归清理(加密 body/根路径通道兜底)、无特征响应预检跳过的低耗电优化)
+response if ${url} ~= /^https?:\/\/((api|api-q|squnit-api|quic-api)\.m\.jd\.com|(squnit-api-)?api-ai\.jd\.com)\/(?:client\.action|api)?(?:$|[\/?#])/i then script("https://raw.githubusercontent.com/y0unge/ad-block-collection/main/JD_remove_ads.js") with tag="京东_广告响应清理", timeout=20, requires_body=true
+
+[MITM]
+# 低耗电: 仅保留有 Rewrite/Script 规则实际命中的域名 —— mars/policy 已 REJECT(规则先于
+# MITM 生效，无需解密)，api/routine/color/waapdg 无任何规则引用，解密纯属开销
+# *.360buyimg.com 为开屏素材断供 Rewrite 所需(Rewrite 仅对 MITM 解密的 HTTPS 生效;
+# 16.1.81 IPA 实锤素材基础 URL 可落在任意 360buyimg 分片, 故用通配; 代价是图片 CDN
+# 流量均被解密, 仅 TLS 握手开销/连接复用, 若在意耗电可收窄为 m/img1/img2/img10-30/storage 系)
+hostname = api.m.jd.com, squnit-api.m.jd.com, quic-api.m.jd.com, api-q.m.jd.com, api-ai.jd.com, squnit-api-ai.jd.com, storage.jd.com, *.360buyimg.com
