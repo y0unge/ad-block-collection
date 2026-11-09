@@ -68,12 +68,15 @@
     console.warn("[JD-FID] " + ($request.method || "GET") + " fid=" + (fid || "(none)") + " url=" + url.slice(0, 100));
   }
 
-  // 功能性接口白名单(2026-11-09 领券问题): readCustomSurfaceList 为自定义浮层/皮肤系统
-  // (首页皮肤/导航样式/浮层, 领券动作亦经此通道, templateArr 区分模板)——纯 UI 功能无
-  // 广告价值; 其浮层/banner 楼层存在被 BLOCK_MID(banner/bannerFloor)与 TITLE_RE
-  // (猜你喜欢等)误伤的风险, 直接放行不做任何清理。实测启动场景(TNDongDong 模板)
-  // 响应本就 pass-through, 白名单对非领券场景零影响。
-  if (fid && /^readCustomSurfaceList$/i.test(fid)) {
+  // 功能性接口白名单(2026-11-09/10 领券问题): 以下 fid 纯 UI/功能通道, 无广告拦截价值,
+  // 其响应含 banner 楼层/"猜你喜欢"等特征时会被 deepScrub 的 BLOCK_MID/TITLE_RE
+  // 误清空(券卡片即 bannerFloor 楼层)——直接放行不做任何清理:
+  //   1) readCustomSurfaceList: 自定义浮层/皮肤系统(首页皮肤/导航样式/浮层)
+  //   2) mcoupon_showcoupon / mcoupon_getcoupon (mcoupon_* 前缀): 领券 H5
+  //      (coupon.m.jd.com/coupons/show.action) 的券列表与领取接口
+  //      (appid=h5_awake_wxapp, client=wh5, 主 bundle 逆向确认)
+  //   3) whx_followShop: 关注店铺领券前置动作
+  if (fid && /^(readCustomSurfaceList|mcoupon_\w+|whx_followShop)$/i.test(fid)) {
     $done({});
     return;
   }
